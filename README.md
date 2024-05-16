@@ -19,8 +19,8 @@ css_take_credits - Отобрать кредиты у игрока (Пример
 
 Переменные:
 	
-"DatabaseHost": "" - Хост базы данных
-"DatabasePort": 3306 - Порт базы данных
+"DatabaseHost": "" - Хост базы данных\n
+"DatabasePort": 3306 - Порт базы данных\n
 "DatabaseUser": "" - Пользователь базы данных
 "DatabasePassword": "" - Пароль от пользователя базы данных
 "DatabaseName": "",- Название базы данных
