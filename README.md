@@ -18,12 +18,17 @@ css_set_credits - Установить кредиты игроку (Пример
 css_take_credits - Отобрать кредиты у игрока (Пример css_take_credits <ник/юзер_айди/стим_айди> <кол-во кредитов>)
 
 Переменные:
-	
-"DatabaseHost": "" - Хост базы данных\n
-"DatabasePort": 3306 - Порт базы данных\n
+
+"DatabaseHost": "" - Хост базы данных
+
+"DatabasePort": 3306 - Порт базы данных
+
 "DatabaseUser": "" - Пользователь базы данных
+
 "DatabasePassword": "" - Пароль от пользователя базы данных
+
 "DatabaseName": "",- Название базы данных
+
 "UseCenterMenu": false - Использовать CenterMenu или ChatMenu
+
 "TransCreditsPercent": 5 - Процент комиссии при передачи кредитов (-1 выключить передачу)
-"AdminFlag": "@css/root" - Админ флаг которому доступны админские команды
