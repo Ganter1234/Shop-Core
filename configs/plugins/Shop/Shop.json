@@ -1,0 +1,10 @@
+{
+	"DatabaseHost": "",
+	"DatabasePort": 3306,
+	"DatabaseUser": "",
+	"DatabasePassword": "",
+	"DatabaseName": "",
+	"UseCenterMenu": false,
+	"TransCreditsPercent": 5,
+	"AdminFlag": "@css/root"
+}
