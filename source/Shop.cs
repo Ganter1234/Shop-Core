@@ -16,7 +16,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
 {
     public override string ModuleName => "Shop Core";
     public override string ModuleAuthor => "Ganter1234";
-    public override string ModuleVersion => "1.7";
+    public override string ModuleVersion => "1.7.1";
     public ShopConfig Config { get; set; } = new();
     public PlayerInformation[] playerInfo = new PlayerInformation[65];
     public List<Items> ItemsList = new();
@@ -575,7 +575,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                         Auth = steamid
                     });
 
-                    if(data != null)
+                    if(data != null && data.Count() > 0)
                     {
                         foreach(var row in data.ToList())
                         {
@@ -628,7 +628,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                         playerID = playerInfo[playerSlot].DatabaseID
                     });
                     
-                    if(data != null)
+                    if(data != null && data.Count() > 0)
                     {
                         foreach(var row in data.ToList())
                         {
@@ -686,7 +686,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                         playerID = playerInfo[playerSlot].DatabaseID
                     });
 
-                    if(data != null)
+                    if(data != null && data.Count() > 0)
                     {
                         foreach(var row in data.ToList())
                         {
