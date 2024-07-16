@@ -20,8 +20,14 @@ namespace Shop
 		[JsonPropertyName("DatabaseName")]
 		public string DatabaseName { get; set; } = "";
 
+		[JsonPropertyName("Commands")]
+		public string Commands { get; set; } = "css_shop;css_store";
+
 		[JsonPropertyName("UseCenterMenu")]
 		public bool UseCenterMenu { get; set; } = false;
+
+		[JsonPropertyName("StartCredits")]
+		public int StartCredits { get; set; } = 0;
 		
 		[JsonPropertyName("TransCreditsPercent")]
 		public int TransCreditsPercent { get; set; } = 5;

@@ -5,173 +5,167 @@ namespace ShopAPI;
 
 public interface IShopApi
 {
+    ///
+    /// <summary>
+    /// Capability плагина
+    /// </summary>
+    ///
 	public static PluginCapability<IShopApi> Capability { get; } = new("Shop_Core:API");
-	string dbConnectionString { get; } // Строка для подключения к БД
+
+    ///
+    /// <summary>
+    /// Строка для подключения к БД
+    /// </summary>
+    ///
+	string dbConnectionString { get; }
 	
-	//
-    // Summary:
-    //     Узнает количество кредитов у игрока
-	//	   player - CCSPlayerController игрока
-    //
-	//
-    // Returns:
-    //     Количество кредитов
+	///
+    /// <summary>
+    /// Узнать количество кредитов у игрока
+    /// </summary>
+    /// <param name="player">CCSPlayerController игрока</param>
+    /// <returns>Количество кредитов</returns>
+    ///
     int GetClientCredits(CCSPlayerController player);
-	
-	//
-    // Summary:
-    //     Установка определенного количества кредитов игроку
-	//	   player - CCSPlayerController игрока
-	//	   Credits - Количество кредитов которое надо выдать
-    //
-	//
-    // Returns:
-    //     Ничего не возвращает
-    void SetClientCredits(CCSPlayerController player, int Credits);
 
-	//
-    // Summary:
-    //     Узнает айди игрока из базы данных
-	//	   player - CCSPlayerController игрока
-    //
-	//
-    // Returns:
-    //     Айди игрока с БД
+    ///
+    /// <summary>
+    /// Установка определенного количества кредитов игроку
+    /// </summary>
+    /// <param name="player">CCSPlayerController игрока</param>
+    /// <param name="credits">Количество кредитов которое надо выдать</param>
+    ///
+    void SetClientCredits(CCSPlayerController player, int credits);
+
+    ///
+    /// <summary>
+    /// Узнает айди игрока из базы данных
+    /// </summary>
+    /// <param name="player">CCSPlayerController игрока</param>
+    /// <returns>Айди игрока с БД</returns>
+    ///
     int GetClientID(CCSPlayerController player);
-	
-	//
-    // Summary:
-    //     Создание категории для товаров магазина
-	//	   CategoryName - Уникальное название категории (Которое указывать при создании предмета)
-	//	   DisplayName - Название которое будет отображаться в меню
-    //
-	//
-    // Returns:
-    //     Ничего не возвращает
-	void CreateCategory(string CategoryName, string DisplayName);
-	
-	//
-    // Summary:
-    //     Создание предмета для магазина (Выполнять натив через Task.Run())
-	//	   UniqueName - Уникальное название предмета (Для баз данных)
-	//	   ItemName - Название которое будет отображаться в меню
-	//     CategoryName - Название категории в котором должен быть предмет (Категория должны быть предварительно создана)
-    //     BuyPrice - Цена покупки предмета
-	//     SellPrice - Цена продажи предмета
-	//     Duration - Длительность предмета, т.е сколько будет активен предмет у игрока (ничего не указывать если хотите создать ограниченный предмет)
-	//     Count - Количество товара которое выдается при покупке (ничего не указывать если хотите создать используемый предмет)
-	//
-    //
-    // Returns:
-    //     Айди предмета
-	Task<int> AddItem(string UniqueName, string ItemName, string CategoryName, int BuyPrice, int SellPrice, int Duration = -1, int Count = -1);
 
-    //
-    // Summary:
-    //     Создание отдельных обратных вызовов для определенного предмета
-	//	   ItemID - Айди предмета
-	//	   OnBuyItem - Обратный вызов при покупке этого предмета
-    //	   OnSellItem - Обратный вызов при продаже этого предмета
-    //	   OnToggleItem - Обратный вызов при изменении состояния предмета
-    //
-	//
-    // Returns:
-    //     Ничего не возвращает
-    void SetItemCallbacks(int ItemID, Action<CCSPlayerController, int, string, string, int, int, int, int>? OnBuyItem = null, Action<CCSPlayerController, int, string, int>? OnSellItem = null, Action<CCSPlayerController, int, string, int>? OnToggleItem = null);
+    ///
+    /// <summary>
+    /// Создание категории для товаров магазина
+    /// </summary>
+    /// <param name="categoryName">Уникальное название категории (Которое указывать при создании предмета)</param>
+    /// <param name="displayName">Название которое будет отображаться в меню</param>
+    ///
+	void CreateCategory(string categoryName, string displayName);
 
-	//
-    // Summary:
-    //     Узнать есть ли предмет в магазине
-	//	   ItemID - Айди предмета
-	//
-    //
-    // Returns:
-    //     Есть предмет или нет
-	bool IsItemExists(int ItemID);
+    ///
+    /// <summary>
+    /// Создание предмета для магазина (Выполнять натив через Task.Run())
+    /// </summary>
+    /// <param name="uniqueName">Уникальное название предмета (Для баз данных)</param>
+    /// <param name="itemName">Название которое будет отображаться в меню</param>
+    /// <param name="categoryName">Название категории в котором должен быть предмет (Категория должны быть предварительно создана)</param>
+    /// <param name="buyPrice">Цена покупки предмета</param>
+    /// <param name="sellPrice">Цена продажи предмета</param>
+    /// <param name="duration">Длительность предмета, т.е сколько будет активен предмет у игрока (ничего не указывать если хотите создать ограниченный предмет)</param>
+    /// <param name="count">Количество товара которое выдается при покупке (ничего не указывать если хотите создать используемый предмет)</param>
+    /// <returns>Айди предмета</returns>
+    ///
+	Task<int> AddItem(string uniqueName, string itemName, string categoryName, int buyPrice, int sellPrice, int duration = -1, int count = -1);
 
-	//
-    // Summary:
-    //     Узнать цену предмета
-	//	   ItemID - Айди предмета
-	//
-    //
-    // Returns:
-    //     Цена предмета
-	int GetItemPrice(int ItemID);
+    ///
+    /// <summary>
+    /// Создание отдельных обратных вызовов для определенного предмета
+    /// </summary>
+    /// <param name="itemID">Айди предмета</param>
+    /// <param name="onBuyItem">Обратный вызов при покупке этого предмета</param>
+    /// <param name="onSellItem">Обратный вызов при продаже этого предмета</param>
+    /// <param name="onToggleItem">Обратный вызов при изменении состояния предмета</param>
+    /// <param name="onUseItem">Обратный вызов при использовании предмета</param>
+    ///
+    void SetItemCallbacks(int itemID, Action<CCSPlayerController, int, string, string, int, int, int, int>? onBuyItem = null, Action<CCSPlayerController, int, string, int>? onSellItem = null, Action<CCSPlayerController, int, string, int>? onToggleItem = null, Action<CCSPlayerController, int, string, int>? onUseItem = null);
 
-	//
-    // Summary:
-    //     Установить цену предмета
-	//	   ItemID - Айди предмета
-	//	   Price - Новая цена на предмет
-	//
-    //
-    // Returns:
-    //     Поменялась цена или нет
-	bool SetItemPrice(int ItemID, int Price);
+    ///
+    /// <summary>
+    /// Узнать есть ли предмет в магазине
+    /// </summary>
+    /// <param name="itemID">Айди предмета</param>
+    /// <returns>Есть предмет или нет</returns>
+    ///
+	bool IsItemExists(int itemID);
 
-	//
-    // Summary:
-    //     Узнать цену продажи предмета
-	//	   ItemID - Айди предмета
-	//
-    //
-    // Returns:
-    //     Цена продажи предмета
-	int GetItemSellPrice(int ItemID);
+    ///
+    /// <summary>
+    /// Узнать цену предмета
+    /// </summary>
+    /// <param name="itemID">Айди предмета</param>
+    /// <returns>Цена предмета</returns>
+    ///
+	int GetItemPrice(int itemID);
 
-	//
-    // Summary:
-    //     Установить цену продажи предмета
-	//	   ItemID - Айди предмета
-	//	   SellPrice - Новая цена продажи
-	//
-    //
-    // Returns:
-    //     Поменялась цена или нет
-	bool SetItemSellPrice(int ItemID, int SellPrice);
+    ///
+    /// <summary>
+    /// Установить цену предмета
+    /// </summary>
+    /// <param name="itemID">Айди предмета</param>
+    /// <param name="price">Новая цена на предмет</param>
+    /// <returns>Поменялась цена или нет</returns>
+    ///
+	bool SetItemPrice(int itemID, int price);
 
-	//
-    // Summary:
-    //     Узнать срок действия предмета (в случае если он не поштучный)
-	//	   ItemID - Айди предмета
-	//
-    //
-    // Returns:
-    //     Срок действия предмета
-	int GetItemDuration(int ItemID);
+    ///
+    /// <summary>
+    /// Узнать цену продажи предмета
+    /// </summary>
+    /// <param name="itemID">Айди предмета</param>
+    /// <returns>Цена продажи предмета</returns>
+    ///
+	int GetItemSellPrice(int itemID);
 
-	//
-    // Summary:
-    //     Установить срок действия предмета (в случае если он не поштучный)
-	//	   ItemID - Айди предмета
-	//	   Duration - Новый срок действия
-	//
-    //
-    // Returns:
-    //     Поменялся срок действия или нет
-	bool SetItemDuration(int ItemID, int Duration);
+    ///
+    /// <summary>
+    /// Установить цену продажи предмета
+    /// </summary>
+    /// <param name="itemID">Айди предмета</param>
+    /// <param name="sellPrice">Новая цена предмета</param>
+    /// <returns>Поменялась цена или нет</returns>
+    ///
+	bool SetItemSellPrice(int itemID, int sellPrice);
 
-	//
-    // Summary:
-    //     Узнать количество покупаемых предметов (в случае если он не временный)
-	//	   ItemID - Айди предмета
-	//
-    //
-    // Returns:
-    //     Срок действия предмета
-	int GetItemCount(int ItemID);
+    ///
+    /// <summary>
+    /// Узнать срок действия предмета (в случае если он не поштучный)
+    /// </summary>
+    /// <param name="itemID">Айди предмета</param>
+    /// <returns>Срок действия предмета</returns>
+    ///
+	int GetItemDuration(int itemID);
 
-	//
-    // Summary:
-    //     Установить количество покупаемых предметов (в случае если он не временный)
-	//	   ItemID - Айди предмета
-	//	   Count - Новое количество
-	//
-    //
-    // Returns:
-    //     Поменялось количество предметов или нет
-	bool SetItemCount(int ItemID, int Count);
+    ///
+    /// <summary>
+    /// Установить срок действия предмета (в случае если он не поштучный)
+    /// </summary>
+    /// <param name="itemID">Айди предмета</param>
+    /// <param name="duration">Новый срок действия</param>
+    /// <returns>Поменялся срок действия или нет</returns>
+    ///
+	bool SetItemDuration(int itemID, int duration);
+
+    ///
+    /// <summary>
+    /// Узнать количество покупаемых предметов (в случае если он не временный)
+    /// </summary>
+    /// <param name="itemID">Айди предмета</param>
+    /// <returns>Количество покупаемых предметов</returns>
+    ///
+	int GetItemCount(int itemID);
+
+    ///
+    /// <summary>
+    /// Установить количество покупаемых предметов (в случае если он не временный)
+    /// </summary>
+    /// <param name="itemID">Айди предмета</param>
+    /// <param name="count">Новое количество</param>
+    /// <returns>Поменялось количество предметов или нет</returns>
+    ///
+	bool SetItemCount(int itemID, int count);
 	
 	// Игрок, Айди предмета, Название категории, Уникальное имя предмета, Цена покупки, Цена продажи, Длительность предмета, Кол-во предмета
 	event Action<CCSPlayerController, int, string, string, int, int, int, int>? ClientBuyItem;
@@ -181,4 +175,7 @@ public interface IShopApi
 	
 	// Игрок, Айди предмета, Уникальное имя предмета, Состояние
 	event Action<CCSPlayerController, int, string, int>? ClientToggleItem;
+
+    // Игрок, Айди предмета, Уникальное имя предмета, Новое кол-во предметов
+	event Action<CCSPlayerController, int, string, int>? ClientUseItem;
 }

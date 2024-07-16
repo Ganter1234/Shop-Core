@@ -4,7 +4,9 @@
 	"DatabaseUser": "",
 	"DatabasePassword": "",
 	"DatabaseName": "",
+	"Commands": "css_shop;css_store",
 	"UseCenterMenu": false,
+	"StartCredits": 0,
 	"TransCreditsPercent": 5,
 	"AdminFlag": "@css/root"
 }

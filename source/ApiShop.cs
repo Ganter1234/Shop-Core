@@ -1,26 +1,28 @@
 using CounterStrikeSharp.API.Core;
-using Microsoft.Extensions.Logging;
 using ShopAPI;
 
 namespace Shop.Api;
 public class ApiShop : IShopApi
 {
     public event Action<CCSPlayerController, int, string, string, int, int, int, int>? ClientBuyItem;
-    public event Action<CCSPlayerController, int, string, int>? ClientToggleItem;
     public event Action<CCSPlayerController, int, string, int>? ClientSellItem;
+    public event Action<CCSPlayerController, int, string, int>? ClientToggleItem;
+    public event Action<CCSPlayerController, int, string, int>? ClientUseItem;
     public class ItemCallbacks
     {
-        public ItemCallbacks(int _ItemID, Action<CCSPlayerController, int, string, string, int, int, int, int>? _OnBuyItem, Action<CCSPlayerController, int, string, int>? _OnSellItem, Action<CCSPlayerController, int, string, int>? _OnToggleItem)
+        public ItemCallbacks(int _ItemID, Action<CCSPlayerController, int, string, string, int, int, int, int>? _OnBuyItem, Action<CCSPlayerController, int, string, int>? _OnSellItem, Action<CCSPlayerController, int, string, int>? _OnToggleItem, Action<CCSPlayerController, int, string, int>? _OnUseItem)
         {
             ItemID = _ItemID;
             OnBuyItem = _OnBuyItem;
             OnSellItem = _OnSellItem;
             OnToggleItem = _OnToggleItem;
+            OnUseItem = _OnUseItem;
         }
         public int ItemID { get; set; }
         public Action<CCSPlayerController, int, string, string, int, int, int, int>? OnBuyItem { get; set; }
         public Action<CCSPlayerController, int, string, int>? OnSellItem { get; set; }
         public Action<CCSPlayerController, int, string, int>? OnToggleItem { get; set; }
+        public Action<CCSPlayerController, int, string, int>? OnUseItem { get; set; }
     }
     public List<ItemCallbacks> ItemCallback = new();
     private readonly Shop _shop;
@@ -55,12 +57,10 @@ public class ApiShop : IShopApi
         int index = -1;
         if((index = _shop.ItemsList.FindIndex(x => x.UniqueName == UniqueName && x.Category == CategoryName)) == -1)
         {
-            //Console.WriteLine($"DEBUG_MESSAGE CORE_APINOTFOUND: {CategoryName} | {ItemName} | {UniqueName}");
             id = await _shop.AddItemInDB(CategoryName, UniqueName, ItemName, BuyPrice, SellPrice, Duration, Count);
         }
         else
         {
-            //Console.WriteLine($"DEBUG_MESSAGE CORE_APIFOUND: {CategoryName} | {ItemName} | {UniqueName}");
             _shop.ItemsList[index].ItemName = ItemName;
             _shop.ItemsList[index].BuyPrice = BuyPrice;
             _shop.ItemsList[index].SellPrice = SellPrice;
@@ -134,10 +134,14 @@ public class ApiShop : IShopApi
     {
         ClientToggleItem?.Invoke(player, ItemID, UniqueName, State);
     }
-    public void SetItemCallbacks(int ItemID, Action<CCSPlayerController, int, string, string, int, int, int, int>? OnBuyItem = null, Action<CCSPlayerController, int, string, int>? OnSellItem = null, Action<CCSPlayerController, int, string, int>? OnToggleItem = null)
+    public void OnClientUseItem(CCSPlayerController player, int ItemID, string UniqueName, int NewCount)
+    {
+        ClientUseItem?.Invoke(player, ItemID, UniqueName, NewCount);
+    }
+    public void SetItemCallbacks(int ItemID, Action<CCSPlayerController, int, string, string, int, int, int, int>? OnBuyItem = null, Action<CCSPlayerController, int, string, int>? OnSellItem = null, Action<CCSPlayerController, int, string, int>? OnToggleItem = null, Action<CCSPlayerController, int, string, int>? OnUseItem = null)
     {
         ItemCallbacks? CallbackList;
         if((CallbackList = ItemCallback.Find(x => x.ItemID == ItemID)) != null) ItemCallback.Remove(CallbackList);
-        ItemCallback.Add(new ItemCallbacks( ItemID, OnBuyItem, OnSellItem, OnToggleItem ));
+        ItemCallback.Add(new ItemCallbacks( ItemID, OnBuyItem, OnSellItem, OnToggleItem, OnUseItem ));
     }
 }
