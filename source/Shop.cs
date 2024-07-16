@@ -18,7 +18,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
 {
     public override string ModuleName => "Shop Core";
     public override string ModuleAuthor => "Ganter1234";
-    public override string ModuleVersion => "1.8";
+    public override string ModuleVersion => "1.8.1";
     public ShopConfig Config { get; set; } = new();
     public PlayerInformation[] playerInfo = new PlayerInformation[65];
     public List<Items> ItemsList = new();

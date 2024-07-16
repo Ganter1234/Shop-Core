@@ -138,6 +138,12 @@ public class ApiShop : IShopApi
     {
         ClientUseItem?.Invoke(player, ItemID, UniqueName, NewCount);
     }
+    public void SetItemCallbacks(int ItemID, Action<CCSPlayerController, int, string, string, int, int, int, int>? OnBuyItem = null, Action<CCSPlayerController, int, string, int>? OnSellItem = null, Action<CCSPlayerController, int, string, int>? OnToggleItem = null)
+    {
+        ItemCallbacks? CallbackList;
+        if((CallbackList = ItemCallback.Find(x => x.ItemID == ItemID)) != null) ItemCallback.Remove(CallbackList);
+        ItemCallback.Add(new ItemCallbacks( ItemID, OnBuyItem, OnSellItem, OnToggleItem, null ));
+    }
     public void SetItemCallbacks(int ItemID, Action<CCSPlayerController, int, string, string, int, int, int, int>? OnBuyItem = null, Action<CCSPlayerController, int, string, int>? OnSellItem = null, Action<CCSPlayerController, int, string, int>? OnToggleItem = null, Action<CCSPlayerController, int, string, int>? OnUseItem = null)
     {
         ItemCallbacks? CallbackList;

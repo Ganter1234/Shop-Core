@@ -70,6 +70,9 @@ public interface IShopApi
     ///
 	Task<int> AddItem(string uniqueName, string itemName, string categoryName, int buyPrice, int sellPrice, int duration = -1, int count = -1);
 
+    [Obsolete("Используйте версию с onUseItem")]
+    void SetItemCallbacks(int itemID, Action<CCSPlayerController, int, string, string, int, int, int, int>? onBuyItem = null, Action<CCSPlayerController, int, string, int>? onSellItem = null, Action<CCSPlayerController, int, string, int>? onToggleItem = null);
+
     ///
     /// <summary>
     /// Создание отдельных обратных вызовов для определенного предмета
