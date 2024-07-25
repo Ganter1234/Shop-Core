@@ -1,5 +1,4 @@
-﻿using System.Reflection.Emit;
-using CounterStrikeSharp.API;
+﻿using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Entities;
@@ -17,8 +16,9 @@ namespace Shop;
 public class Shop : BasePlugin, IPluginConfig<ShopConfig>
 {
     public override string ModuleName => "Shop Core";
+    public override string ModuleDescription => "Modular shop system";
     public override string ModuleAuthor => "Ganter1234";
-    public override string ModuleVersion => "1.8.1";
+    public override string ModuleVersion => "1.9";
     public ShopConfig Config { get; set; } = new();
     public PlayerInformation[] playerInfo = new PlayerInformation[65];
     public List<Items> ItemsList = new();
@@ -30,6 +30,9 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
     {
         _api = new Api.ApiShop(this); 
         Capabilities.RegisterPluginCapability(IShopApi.Capability, () => _api);
+
+        CategoryList.Clear();
+        _api!.CoreLoaded();
 
         RegisterListener<Listeners.OnClientAuthorized>(OnClientAuthorized);
 
@@ -44,11 +47,11 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
 
         AddCommandListener("say", OnClientSay, HookMode.Post);
         AddCommandListener("say_team", OnClientSay, HookMode.Post);
-        AddCommand("css_add_credits", "", CommandAddCredits);
-		AddCommand("css_set_credits", "", CommandSetCredits);
-		AddCommand("css_take_credits", "", CommandTakeCredits);
-        AddCommand("css_add_item", "", CommandAddItem);
-		AddCommand("css_take_item", "", CommandTakeItem);
+        AddCommand("css_add_credits", "Add credits to a player", CommandAddCredits);
+		AddCommand("css_set_credits", "Set credits to a player", CommandSetCredits);
+		AddCommand("css_take_credits", "Take credits to a player", CommandTakeCredits);
+        AddCommand("css_add_item", "Add item to a player", CommandAddItem);
+		AddCommand("css_take_item", "Take item to a player", CommandTakeItem);
     }
 
     #region Menus
@@ -56,14 +59,12 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
     {
         if(Config.UseCenterMenu == false)
         {
-            ChatMenu menu = new ChatMenu(title);
-            menu.ExitButton = true;
+            ChatMenu menu = new ChatMenu(title) { ExitButton = true };
             return menu;
         }
         else
         {
-            CenterHtmlMenu menu = new CenterHtmlMenu(title, this);
-            menu.ExitButton = true;
+            CenterHtmlMenu menu = new CenterHtmlMenu(title, this) { ExitButton = true };
             return menu;
         }
     }
@@ -192,7 +193,9 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
 
         int itemid = Item.ItemID;
 
+        // Список предметов
         var list = playerInfo[player.Slot].ItemList.Find(x => x.item_id == itemid);
+        // Список состояний предметов
         var state = playerInfo[player.Slot].ItemStates.Find(x => x.ItemID == itemid);
 
         if(!IsItemFinite(Item) && list != null && state == null)
@@ -223,7 +226,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             menu.AddMenuOption(Localizer["Menu_ChooseItemYourCount", list == null ? 0 : list.count], null!, true);
         }
 
-        if(Item.Count <= -1)
+        if(Item.Duration >= 0)
         {
             menu.AddMenuOption(list == null ? Item.BuyPrice > GetClientCredits(player) ? Localizer["Menu_ChooseItemBuyNoMoney"] : Localizer["Menu_ChooseItemBuy"] :
             state!.State == 1 ? Localizer["Menu_ChooseItemStateOFF"] : Localizer["Menu_ChooseItemStateON"], (player, _) =>
@@ -232,16 +235,19 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                 else OnChooseAction(player, ItemName, UniqueName, itemid, Item.Category, list);
             }, list == null && Item.BuyPrice > GetClientCredits(player));
         }
-        if(list != null && list.count > 0)
+        else if(Item.Count > 0)
         {
             menu.AddMenuOption(Item.BuyPrice > GetClientCredits(player) ? Localizer["Menu_ChooseItemBuyNoMoney"] : Localizer["Menu_ChooseItemBuy"], (player, _) =>
             {
                 OnChooseBuy(player, ItemName, UniqueName, itemid, Item, list);
             }, Item.BuyPrice > GetClientCredits(player));
-            menu.AddMenuOption(Localizer["Menu_ChooseItemUSE"], (player, _) =>
+            if(list != null)
             {
-                OnChooseAction(player, ItemName, UniqueName, itemid, Item.Category, list);
-            });
+                menu.AddMenuOption(Localizer["Menu_ChooseItemUSE"], (player, _) =>
+                {
+                    OnChooseAction(player, ItemName, UniqueName, itemid, Item.Category, list);
+                });
+            }
         }
         menu.AddMenuOption(Localizer["Menu_ChooseItemSell", Item.SellPrice], (player, _) =>
         {
@@ -630,6 +636,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                             };
                         }
 
+                        // Обновление информации об игроке
                         await connection.ExecuteAsync("UPDATE `shop_players` SET `name` = @Name WHERE `auth` = @Auth;", new
                         {
                             Auth = steamid,
@@ -638,6 +645,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                     }
                     else
                     {
+                        // Добавление игрока в базу в случае его отсутствия
                         await connection.ExecuteAsync("INSERT INTO `shop_players` (`auth`, `name`, `money`) VALUES (@Auth, @Name, @Money);", new
                         {
                             Auth = steamid,
@@ -685,7 +693,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                     foreach(var item in copyPlayerInfo)
                     {
                         var Itemlist = ItemsList.Find(x => x.ItemID == item.item_id);
-                        if(item.duration > 0 && Itemlist != null)
+                        if(item.duration > 0 && item.count <= 0 && Itemlist != null)
                         {
                             int timeleft = item.duration+item.buy_time-(int)DateTimeOffset.Now.ToUnixTimeSeconds();
                             if(timeleft > 0)
@@ -722,6 +730,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                         }
                     }
 
+                    // Загрузка состояний предметов
                     data = await connection.QueryAsync("SELECT * FROM `shop_toggles` WHERE `player_id` = @playerID;", new
                     {
                         playerID = playerInfo[playerSlot].DatabaseID
@@ -815,8 +824,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
 			throw new Exception("[SHOP] You need to setup Database credentials in config!");
 		}
 
-        CategoryList.Clear();
-
 		MySqlConnectionStringBuilder builder = new MySqlConnectionStringBuilder
 		{
 			Server = config.DatabaseHost,
@@ -826,7 +833,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
 			Port = (uint)config.DatabasePort,
 		};
 
-        dbConnectionString = builder.ConnectionString;
+        dbConnectionString = builder.ConnectionString + ";Allow User Variables=True"; // Исправление ошибки Parameter '@' must be defined. To use this as a variable, set 'Allow User Variables=true' in the connection string.
 
         Task.Run(async () => 
         {
@@ -878,7 +885,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
 
         foreach(var Commands in config.Commands.Split(";"))
         {
-            AddCommand(Commands, "", (player, _) => OpenShopMenu(player));
+            AddCommand(Commands, "Open main menu shop", (player, _) => OpenShopMenu(player));
         }
 
 		Config = config;
@@ -1243,13 +1250,21 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                         return;
                     }
 
+                    HaveCredits = GetClientCredits(player) - (PriceSend + CreditsCount) >= 0;
+                    if(!HaveCredits)
+                    {
+                        player.PrintToChat(StringExtensions.ReplaceColorTags(Localizer["NotEnoughMoney"]));
+                        return;
+                    }
+
                     SetClientCredits(player, GetClientCredits(player) - (PriceSend + CreditsCount));
                     SetClientCredits(target, CreditsCount+GetClientCredits(target));
                     
                     player.PrintToChat(StringExtensions.ReplaceColorTags(Localizer["TransferCreditsSuccessSender", CreditsCount, target.PlayerName]));
-                    player.PrintToChat(StringExtensions.ReplaceColorTags(Localizer["TransferCreditsSuccessTarget", CreditsCount, player.PlayerName]));
+                    target.PrintToChat(StringExtensions.ReplaceColorTags(Localizer["TransferCreditsSuccessTarget", CreditsCount, player.PlayerName]));
                 }, !HaveCredits);
                 transPlayer[player.Slot] = null!;
+                menu.PostSelectAction = PostSelectAction.Close;
                 menu.Open(player);
             }
             else player.PrintToChat(StringExtensions.ReplaceColorTags(Localizer["TransferCreditsIncorrectCreditsCount"]));
@@ -1371,11 +1386,13 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
         });
     }
 
-    public void GivePlayerItem(CCSPlayerController player, Items Item, int customDuration)
+    public bool GivePlayerItem(CCSPlayerController player, Items Item, int customDuration)
     {
-        if(player.IsBot || player.IsHLTV || playerInfo[player.Slot] == null || playerInfo[player.Slot].DatabaseID == -1) return;
+        if(player.IsBot || player.IsHLTV || playerInfo[player.Slot] == null || playerInfo[player.Slot].DatabaseID == -1) return false;
 
         var playerList = playerInfo[player.Slot].ItemList.Find(x => x.item_id == Item.ItemID);
+
+        if(IsItemFinite(Item) && customDuration <= 0 || !IsItemFinite(Item) && customDuration <= -1) return false;
         
         Task.Run(async () => 
         {
@@ -1446,10 +1463,14 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                 throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
             }
         });
+
+        return true;
     }
 
-    public void GivePlayerItem(string SteamID, Items Item, int customDuration)
+    public bool GivePlayerItem(string SteamID, Items Item, int customDuration)
     {
+        if(IsItemFinite(Item) && customDuration <= 0 || !IsItemFinite(Item) && customDuration <= -1) return false;
+
         Task.Run(async () => 
         {
             try
@@ -1521,15 +1542,19 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                 throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
             }
         });
+
+        return true;
     }
 
-    public void TakePlayerItem(CCSPlayerController player, Items Item, int customCount)
+    public bool TakePlayerItem(CCSPlayerController player, Items Item, int customCount)
     {
-        if(player.IsBot || player.IsHLTV || playerInfo[player.Slot] == null || playerInfo[player.Slot].DatabaseID == -1) return;
+        if(player.IsBot || player.IsHLTV || playerInfo[player.Slot] == null || playerInfo[player.Slot].DatabaseID == -1) return false;
 
         var playerList = playerInfo[player.Slot].ItemList.Find(x => x.item_id == Item.ItemID);
 
-        if(playerList == null) return;
+        if(playerList == null) return true;
+
+        if(IsItemFinite(Item) && customCount <= 0) return false;
 
         Task.Run(async () => 
         {
@@ -1571,6 +1596,8 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                     }
                     else // Если это поштучный предмет и их количество меньше или равно 0 то удаляем информацию с базы, если нет то просто обновляем кол-во
                     {
+                        if(customCount <= 0) return;
+
                         int index = playerInfo[player.Slot].ItemList.FindIndex(x => x.item_id == Item.ItemID);
                         if(index != -1)
                         {
@@ -1607,10 +1634,14 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                 throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
             }
         });
+
+        return true;
     }
 
-    public void TakePlayerItem(string steamid, Items Item, int customCount)
+    public bool TakePlayerItem(string steamid, Items Item, int customCount)
     {
+        if(IsItemFinite(Item) && customCount <= 0) return false;
+        
         Task.Run(async () => 
         {
             try
@@ -1687,6 +1718,8 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                 throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
             }
         });
+
+        return true;
     }
 
     public bool IsItemFinite(Items Item)

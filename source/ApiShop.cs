@@ -8,6 +8,7 @@ public class ApiShop : IShopApi
     public event Action<CCSPlayerController, int, string, int>? ClientSellItem;
     public event Action<CCSPlayerController, int, string, int>? ClientToggleItem;
     public event Action<CCSPlayerController, int, string, int>? ClientUseItem;
+    public event Action? OnCoreLoaded;
     public class ItemCallbacks
     {
         public ItemCallbacks(int _ItemID, Action<CCSPlayerController, int, string, string, int, int, int, int>? _OnBuyItem, Action<CCSPlayerController, int, string, int>? _OnSellItem, Action<CCSPlayerController, int, string, int>? _OnToggleItem, Action<CCSPlayerController, int, string, int>? _OnUseItem)
@@ -26,12 +27,10 @@ public class ApiShop : IShopApi
     }
     public List<ItemCallbacks> ItemCallback = new();
     private readonly Shop _shop;
-    public string dbConnectionString { get; }
-
+    public string dbConnectionString => _shop.dbConnectionString;
     public ApiShop(Shop shop)
     {
         _shop = shop;
-        dbConnectionString = shop.dbConnectionString;
         ItemCallback.Clear();
     }
     public int GetClientID(CCSPlayerController player)
@@ -122,6 +121,10 @@ public class ApiShop : IShopApi
         _shop.ItemsList[index].Count = Count;
         return true;
     }
+    public void CoreLoaded()
+    {
+        OnCoreLoaded?.Invoke();
+    }
     public void OnClientBuyItem(CCSPlayerController player, int ItemID, string CategoryName, string UniqueName, int BuyPrice, int SellPrice, int Duration, int Count)
     {
         ClientBuyItem?.Invoke(player, ItemID, CategoryName, UniqueName, BuyPrice, SellPrice, Duration, Count);
@@ -149,5 +152,32 @@ public class ApiShop : IShopApi
         ItemCallbacks? CallbackList;
         if((CallbackList = ItemCallback.Find(x => x.ItemID == ItemID)) != null) ItemCallback.Remove(CallbackList);
         ItemCallback.Add(new ItemCallbacks( ItemID, OnBuyItem, OnSellItem, OnToggleItem, OnUseItem ));
+    }
+
+    public bool IsClientAuthorized(CCSPlayerController player)
+    {
+        return _shop.playerInfo[player.Slot].DatabaseID != -1;
+    }
+
+    public int GetItemIdByUniqueName(string uniqueName)
+    {
+        Items? Item = _shop.ItemsList.Find(x => x.UniqueName == uniqueName);
+        return Item == null ? -1 : Item.ItemID;
+    }
+
+    public bool GiveClientItem(CCSPlayerController player, int itemID, int customDuration)
+    {
+        Items? Item = _shop.ItemsList.Find(x => x.ItemID == itemID);
+        if(Item == null) return false;
+
+        return _shop.GivePlayerItem(player, Item, customDuration);
+    }
+
+    public bool RemoveClientItem(CCSPlayerController player, int itemID, int count = -1)
+    {
+        Items? Item = _shop.ItemsList.Find(x => x.ItemID == itemID);
+        if(Item == null) return false;
+
+        return _shop.TakePlayerItem(player, Item, count);
     }
 }

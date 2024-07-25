@@ -48,6 +48,46 @@ public interface IShopApi
 
     ///
     /// <summary>
+    /// Авторизирован ли игрок на сервере
+    /// </summary>
+    /// <param name="player">CCSPlayerController игрока</param>
+    /// <returns>Авторизирован или нет</returns>
+    ///
+	bool IsClientAuthorized(CCSPlayerController player);
+
+    ///
+    /// <summary>
+    /// Получить айди предмета по уникальному имени предмета
+    /// </summary>
+    /// <param name="uniqueName">Уникальное имя предмета</param>
+    /// <returns>Айди предмета или -1 если предмет не найден</returns>
+    ///
+	int GetItemIdByUniqueName(string uniqueName);
+
+    ///
+    /// <summary>
+    /// Выдать предмет игроку
+    /// </summary>
+    /// <param name="player">CCSPlayerController игрока</param>
+    /// <param name="itemID">Айди предмета</param>
+    /// <param name="customDuration">Длительность предмета или количество</param>
+    /// <returns>Выдался предмет или нет</returns>
+    ///
+	bool GiveClientItem(CCSPlayerController player, int itemID, int customDuration);
+
+    ///
+    /// <summary>
+    /// Удалить предмет у игрока
+    /// </summary>
+    /// <param name="player">CCSPlayerController игрока</param>
+    /// <param name="itemID">Айди предмета</param>
+    /// <param name="count">Количество если это поштучный предмет</param>
+    /// <returns>Удалился предмет или нет</returns>
+    ///
+	bool RemoveClientItem(CCSPlayerController player, int itemID, int count = -1);
+
+    ///
+    /// <summary>
     /// Создание категории для товаров магазина
     /// </summary>
     /// <param name="categoryName">Уникальное название категории (Которое указывать при создании предмета)</param>
@@ -181,4 +221,7 @@ public interface IShopApi
 
     // Игрок, Айди предмета, Уникальное имя предмета, Новое кол-во предметов
 	event Action<CCSPlayerController, int, string, int>? ClientUseItem;
+
+    // Событие что ядро загружено
+    event Action? OnCoreLoaded;
 }
