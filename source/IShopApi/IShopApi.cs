@@ -7,6 +7,26 @@ public interface IShopApi
 {
     ///
     /// <summary>
+    /// Enum для показа как именно изменилось количество кредитов
+    /// </summary>
+    /// <remarks>
+    /// ByAdminCommand = Через встроенные команды в магазине по типу css_add_credits
+    /// ByFunction = Через функцию в API плагина
+    /// ByBuyOrSell = Через покупку или продажу предмета
+    /// ByTransfer = Через передачу кредитов
+    /// IgnoreCallbackHook = При использовании функции изменения кредитов можно заблокировать вызов Callback
+    /// </remarks>
+    ///
+    enum WhoChangeCredits
+    {
+        ByAdminCommand,
+        ByFunction,
+        ByBuyOrSell,
+        ByTransfer,
+        IgnoreCallbackHook
+    }
+    ///
+    /// <summary>
     /// Capability плагина
     /// </summary>
     ///
@@ -34,8 +54,29 @@ public interface IShopApi
     /// </summary>
     /// <param name="player">CCSPlayerController игрока</param>
     /// <param name="credits">Количество кредитов которое надо выдать</param>
+    /// <param name="by_who">Как произошло изменение кредитов</param>
     ///
-    void SetClientCredits(CCSPlayerController player, int credits);
+    void SetClientCredits(CCSPlayerController player, int credits, WhoChangeCredits by_who = WhoChangeCredits.ByFunction);
+
+    ///
+    /// <summary>
+    /// Добавление определенного количества кредитов игроку
+    /// </summary>
+    /// <param name="player">CCSPlayerController игрока</param>
+    /// <param name="credits">Количество кредитов которое надо добавить</param>
+    /// <param name="by_who">Как произошло изменение кредитов</param>
+    ///
+    void AddClientCredits(CCSPlayerController player, int credits, WhoChangeCredits by_who = WhoChangeCredits.ByFunction);
+
+    ///
+    /// <summary>
+    /// Отбирание определенного количества кредитов игроку
+    /// </summary>
+    /// <param name="player">CCSPlayerController игрока</param>
+    /// <param name="credits">Количество кредитов которое надо отобрать</param>
+    /// <param name="by_who">Как произошло изменение кредитов</param>
+    ///
+    void TakeClientCredits(CCSPlayerController player, int credits, WhoChangeCredits by_who = WhoChangeCredits.ByFunction);
 
     ///
     /// <summary>
@@ -54,6 +95,48 @@ public interface IShopApi
     /// <returns>Авторизирован или нет</returns>
     ///
 	bool IsClientAuthorized(CCSPlayerController player);
+
+    ///
+    /// <summary>
+    /// Является ли игрок администратором (Определяется по флагу с конфига)
+    /// </summary>
+    /// <param name="player">CCSPlayerController игрока</param>
+    /// <returns>Админ или нет</returns>
+    ///
+	bool IsAdmin(CCSPlayerController player);
+
+    ///
+    /// <summary>
+    /// Добавить подменю в меню функций
+    /// </summary>
+    /// <param name="display">Отображаемый текст в подменю (либо фразу для переводов (перевод надо писать в файл ядра) )</param>
+    /// <param name="openMenu">Обратный вызов при открытии этого подменю</param>
+    ///
+    void AddToFunctionsMenu(string display, Action<CCSPlayerController> openMenu);
+
+    ///
+    /// <summary>
+    /// Удалить подменю в меню функций
+    /// </summary>
+    /// <param name="openMenu">Обратный вызов который использовался для открытия подменю</param>
+    ///
+    void RemoveFromFunctionsMenu(Action<CCSPlayerController> openMenu);
+
+    ///
+    /// <summary>
+    /// Отобразить меню функций игроку
+    /// </summary>
+    /// <param name="player">CCSPlayerController игрока</param>
+    ///
+    void ShowFunctionsMenu(CCSPlayerController player);
+
+    ///
+    /// <summary>
+    /// Открыть главное меню магазина игроку
+    /// </summary>
+    /// <param name="player">CCSPlayerController игрока</param>
+    ///
+    void OpenMainMenu(CCSPlayerController player);
 
     ///
     /// <summary>
@@ -110,9 +193,6 @@ public interface IShopApi
     ///
 	Task<int> AddItem(string uniqueName, string itemName, string categoryName, int buyPrice, int sellPrice, int duration = -1, int count = -1);
 
-    [Obsolete("Используйте версию с onUseItem")]
-    void SetItemCallbacks(int itemID, Action<CCSPlayerController, int, string, string, int, int, int, int>? onBuyItem = null, Action<CCSPlayerController, int, string, int>? onSellItem = null, Action<CCSPlayerController, int, string, int>? onToggleItem = null);
-
     ///
     /// <summary>
     /// Создание отдельных обратных вызовов для определенного предмета
@@ -122,8 +202,26 @@ public interface IShopApi
     /// <param name="onSellItem">Обратный вызов при продаже этого предмета</param>
     /// <param name="onToggleItem">Обратный вызов при изменении состояния предмета</param>
     /// <param name="onUseItem">Обратный вызов при использовании предмета</param>
+    /// <param name="onPreview">Обратный вызов при активации превью</param>
     ///
-    void SetItemCallbacks(int itemID, Action<CCSPlayerController, int, string, string, int, int, int, int>? onBuyItem = null, Action<CCSPlayerController, int, string, int>? onSellItem = null, Action<CCSPlayerController, int, string, int>? onToggleItem = null, Action<CCSPlayerController, int, string, int>? onUseItem = null);
+    void SetItemCallbacks(int itemID, Func<CCSPlayerController, int, string, string, int, int, int, int, HookResult>? onBuyItem = null, Func<CCSPlayerController, int, string, int, HookResult>? onSellItem = null, Func<CCSPlayerController, int, string, int, HookResult>? onToggleItem = null, Func<CCSPlayerController, int, string, int, HookResult>? onUseItem = null, Action<CCSPlayerController, int, string, string>? onPreview = null);
+
+    ///
+    /// <summary>
+    /// Отгрузить предмет из магазина
+    /// </summary>
+    /// <param name="itemID">Айди предмета</param>
+    ///
+	void UnregisterItem(int itemID);
+
+    ///
+    /// <summary>
+    /// Отгрузить категорию предметов из магазина
+    /// </summary>
+    /// <param name="categoryName">Уникальное название категории</param>
+    /// <param name="removeAllItems">Убрать ли все предметы из категории после отгрузки?</param>
+    ///
+	void UnregisterCategory(string categoryName, bool removeAllItems);
 
     ///
     /// <summary>
@@ -210,18 +308,36 @@ public interface IShopApi
     ///
 	bool SetItemCount(int itemID, int count);
 	
-	// Игрок, Айди предмета, Название категории, Уникальное имя предмета, Цена покупки, Цена продажи, Длительность предмета, Кол-во предмета
+	// Игрок, Айди предмета, Название категории, Уникальное имя предмета, Цена покупки, Цена продажи, Длительность предмета, Кол-во предмета. Return: Continue = Продолжить без изменений, другое заблокирует покупку
 	event Action<CCSPlayerController, int, string, string, int, int, int, int>? ClientBuyItem;
 	
-	// Игрок, Айди предмета, Уникальное имя предмета, Цена продажи
+	// Игрок, Айди предмета, Уникальное имя предмета, Цена продажи. Return: Continue = Продолжить без изменений, другое заблокирует продажу
 	event Action<CCSPlayerController, int, string, int>? ClientSellItem;
 	
-	// Игрок, Айди предмета, Уникальное имя предмета, Состояние
+	// Игрок, Айди предмета, Уникальное имя предмета, Состояние. Return: Continue = Продолжить без изменений, другое заблокирует изменение состояния
 	event Action<CCSPlayerController, int, string, int>? ClientToggleItem;
 
-    // Игрок, Айди предмета, Уникальное имя предмета, Новое кол-во предметов
+    // Игрок, Айди предмета, Уникальное имя предмета, Новое кол-во предметов. Return: Continue = Продолжить без изменений, другое заблокирует использование предмета
 	event Action<CCSPlayerController, int, string, int>? ClientUseItem;
 
-    // Событие что ядро загружено
-    event Action? OnCoreLoaded;
+    // Игрок, Айди предмета, Уникальное имя предмета, Название категории. Return: Continue = Продолжить без изменений, другое заблокирует использование превью
+	event Action<CCSPlayerController, int, string, string>? ClientPreview;
+
+    // Игрок, Новое количество кредитов, От чего произошло изменение кредитов. Return: null = Продолжить без изменений, остальное это новое количество кредитов
+	event Func<CCSPlayerController, int, WhoChangeCredits, int?>? CreditsSet;
+
+    // Игрок, Новое количество кредитов, От чего произошло изменение кредитов.
+	event Action<CCSPlayerController, int, WhoChangeCredits>? CreditsSetPost;
+
+    // Игрок, Новое количество кредитов, От чего произошло изменение кредитов. Return: null = Продолжить без изменений, остальное это новое количество кредитов
+	event Func<CCSPlayerController, int, WhoChangeCredits, int?>? CreditsAdd;
+
+    // Игрок, Новое количество кредитов, От чего произошло изменение кредитов.
+	event Action<CCSPlayerController, int, WhoChangeCredits>? CreditsAddPost;
+
+    // Игрок, Новое количество кредитов, От чего произошло изменение кредитов. Return: null = Продолжить без изменений, остальное это новое количество кредитов
+	event Func<CCSPlayerController, int, WhoChangeCredits, int?>? CreditsTake;
+
+    // Игрок, Новое количество кредитов, От чего произошло изменение кредитов.
+	event Action<CCSPlayerController, int, WhoChangeCredits>? CreditsTakePost;
 }

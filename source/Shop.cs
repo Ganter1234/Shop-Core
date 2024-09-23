@@ -18,7 +18,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
     public override string ModuleName => "Shop Core";
     public override string ModuleDescription => "Modular shop system";
     public override string ModuleAuthor => "Ganter1234";
-    public override string ModuleVersion => "1.9";
+    public override string ModuleVersion => "2.0";
     public ShopConfig Config { get; set; } = new();
     public PlayerInformation[] playerInfo = new PlayerInformation[65];
     public List<Items> ItemsList = new();
@@ -32,7 +32,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
         Capabilities.RegisterPluginCapability(IShopApi.Capability, () => _api);
 
         CategoryList.Clear();
-        _api!.CoreLoaded();
 
         RegisterListener<Listeners.OnClientAuthorized>(OnClientAuthorized);
 
@@ -104,6 +103,13 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
         var menu = CreateMenu(Localizer["Menu_FunctionsTitle"]);
         menu.AddMenuOption(Localizer["Menu_FunctionsTransferCredits", Config.TransCreditsPercent == -1 ? Localizer["Menu_FunctionsTransferCreditsOFF"] : Config.TransCreditsPercent == 0 ? "" : Localizer["Menu_FunctionsTransferCreditsComission", Config.TransCreditsPercent]],
         (player, _) => OpenTransferMenu(player), Config.TransCreditsPercent == -1);
+        foreach(var functions in _api!.FunctionsCallback)
+        {
+            menu.AddMenuOption(Localizer[functions.Display], (players, _) => {
+                MenuManager.CloseActiveMenu(players);
+                Server.NextFrame(() => functions.Callback.Invoke(players) );
+            });
+        }
         menu.Open(player);
     }
     public void OpenTransferMenu(CCSPlayerController player)
@@ -234,6 +240,15 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                 if(list == null) OnChooseBuy(player, ItemName, UniqueName, itemid, Item, list);
                 else OnChooseAction(player, ItemName, UniqueName, itemid, Item.Category, list);
             }, list == null && Item.BuyPrice > GetClientCredits(player));
+
+            if(list == null)
+            {
+                var CallbackList = _api!.ItemCallback.Find(x => x.ItemID == itemid);
+                menu.AddMenuOption(CallbackList != null && CallbackList.OnClientPreview != null ? Localizer["Menu_ChooseItemPreview"] : Localizer["Menu_ChooseItemPreviewUnavailable"], (player, _) =>
+                {
+                    OnChoosePreview(player, itemid, UniqueName, Item.Category);
+                }, CallbackList == null || CallbackList.OnClientPreview == null);
+            }
         }
         else if(Item.Count > 0)
         {
@@ -256,6 +271,14 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
 
         menu.Open(player);
     }
+    public void OnChoosePreview(CCSPlayerController player, int ItemID, string UniqueName, string CategoryName)
+    {
+        var CallbackList = _api!.ItemCallback.Find(x => x.ItemID == ItemID);
+        if(CallbackList != null && CallbackList.OnClientPreview != null) 
+            CallbackList.OnClientPreview.Invoke(player, ItemID, UniqueName, CategoryName);
+
+        _api!.OnClientPreview(player, ItemID, UniqueName, CategoryName);
+    }
     public void OnChooseBuy(CCSPlayerController player, string ItemName, string UniqueName, int ItemID, Items Item, ItemInfo? playerList)
     {
         if(Item.BuyPrice > GetClientCredits(player))
@@ -263,6 +286,12 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             player.PrintToChat(StringExtensions.ReplaceColorTags(Localizer["NotEnoughMoney"]));
             return;
         }
+
+        var CallbackList = _api!.ItemCallback.Find(x => x.ItemID == ItemID);
+        if(CallbackList != null && CallbackList.OnBuyItem != null) 
+            if(CallbackList.OnBuyItem.Invoke(player, ItemID, Item.Category, UniqueName, Item.BuyPrice, Item.SellPrice, Item.Duration, Item.Count) != HookResult.Continue)
+                return;
+        _api!.OnClientBuyItem(player, ItemID, Item.Category, UniqueName, Item.BuyPrice, Item.SellPrice, Item.Duration, Item.Count);
 
         Task.Run(async () => 
         {
@@ -322,13 +351,9 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                         DequipAllItemsOnCategory(player, Item.Category, ItemID);
                     }
 
-                    SetClientCredits(player, GetClientCredits(player) - Item.BuyPrice);
+                    TakeClientCredits(player, Item.BuyPrice, IShopApi.WhoChangeCredits.ByBuyOrSell);
 
                     Server.NextFrame(() => {
-                        var CallbackList = _api!.ItemCallback.Find(x => x.ItemID == ItemID);
-                        if(CallbackList != null && CallbackList.OnBuyItem != null) CallbackList.OnBuyItem.Invoke(player, ItemID, Item.Category, UniqueName, Item.BuyPrice, Item.SellPrice, Item.Duration, Item.Count);
-                        _api!.OnClientBuyItem(player, ItemID, Item.Category, UniqueName, Item.BuyPrice, Item.SellPrice, Item.Duration, Item.Count);
-
                         OnChooseItem(player, ItemName, UniqueName);
                         player.PrintToChat(StringExtensions.ReplaceColorTags(Localizer["YouBuyItem", ItemName, Item.BuyPrice]));
                     });
@@ -345,6 +370,34 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
 
     public void OnChooseAction(CCSPlayerController player, string ItemName, string UniqueName, int ItemID, string Category, ItemInfo playerList)
     {
+        // state item
+        var Itemlist = ItemsList.Find(x => x.ItemID == ItemID);
+        int Index = playerInfo[player.Slot].ItemStates.FindIndex(x => x.ItemID == ItemID)!;
+        int NewState = 0;
+
+        // count item
+        int index = playerInfo[player.Slot].ItemList.IndexOf(playerList);
+        int new_count = 0;
+
+        if(playerList.count <= -1)
+        {
+            var CallbackList = _api!.ItemCallback.Find(x => x.ItemID == ItemID);
+            NewState = playerInfo[player.Slot].ItemStates[Index].State == 0 ? 1 : 0;
+            if(CallbackList != null && CallbackList.OnToggleItem != null) 
+                if(CallbackList.OnToggleItem.Invoke(player, ItemID, UniqueName, NewState) != HookResult.Continue) 
+                    return;
+            _api!.OnClientToggleItem(player, ItemID, UniqueName, NewState);
+        }
+        else
+        {
+            var CallbackList = _api!.ItemCallback.Find(x => x.ItemID == ItemID);
+            new_count = playerInfo[player.Slot].ItemList[index].count -= 1;
+            if(CallbackList != null && CallbackList.OnUseItem != null) 
+                if(CallbackList.OnUseItem.Invoke(player, ItemID, UniqueName, new_count) != HookResult.Continue)
+                    return;
+            _api!.OnClientUseItem(player, ItemID, UniqueName, new_count);
+        }
+
         Task.Run(async () => 
         {
             try
@@ -355,9 +408,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
 
                     if(playerList.count <= -1)
                     {
-                        var Itemlist = ItemsList.Find(x => x.ItemID == ItemID);
-                        int Index = playerInfo[player.Slot].ItemStates.FindIndex(x => x.ItemID == ItemID)!;
-                        int NewState = playerInfo[player.Slot].ItemStates[Index].State == 0 ? 1 : 0;
+                        // TODO: Проверить эту функцию
                         if(playerList.duration > 0 && Itemlist != null)
                         {
                             int timeleft = playerList.duration+playerList.buy_time-(int)DateTimeOffset.Now.ToUnixTimeSeconds();
@@ -430,18 +481,11 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                         
                         Server.NextFrame(() => 
                         {
-                            var CallbackList = _api!.ItemCallback.Find(x => x.ItemID == ItemID);
-                            if(CallbackList != null && CallbackList.OnToggleItem != null) CallbackList.OnToggleItem.Invoke(player, ItemID, UniqueName, NewState);
-                            _api!.OnClientToggleItem(player, ItemID, UniqueName, NewState);
-                            
                             OnChooseItem(player, ItemName, UniqueName);
                         });
                     }
                     else
                     {
-                        int index = playerInfo[player.Slot].ItemList.IndexOf(playerList);
-                        int new_count = playerInfo[player.Slot].ItemList[index].count -= 1;
-
                         if(new_count > 0)
                         {
                             await connection.ExecuteAsync("UPDATE `shop_boughts` SET `count` = @Count WHERE `player_id` = @playerID AND `item_id` = @itemID", new
@@ -464,9 +508,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
 
                         Server.NextFrame(() => 
                         {
-                            var CallbackList = _api!.ItemCallback.Find(x => x.ItemID == ItemID);
-                            if(CallbackList != null && CallbackList.OnUseItem != null) CallbackList.OnUseItem.Invoke(player, ItemID, UniqueName, new_count);
-                            _api!.OnClientUseItem(player, ItemID, UniqueName, new_count);
                             OnChooseItem(player, ItemName, UniqueName);
                         });
                     }
@@ -528,6 +569,11 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
 
     public void OnChooseSell(CCSPlayerController player, string ItemName, string UniqueName, int ItemID, int SellPrice, ItemInfo? playerList)
     {
+        var CallbackList = _api!.ItemCallback.Find(x => x.ItemID == ItemID);
+        if(CallbackList != null && CallbackList.OnSellItem != null) 
+            if(CallbackList.OnSellItem.Invoke(player, ItemID, UniqueName, SellPrice) != HookResult.Continue)
+                return;
+        _api!.OnClientSellItem(player, ItemID, UniqueName, SellPrice);
         Task.Run(async () => 
         {
             try
@@ -573,13 +619,9 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                         });
                     }
 
-                    SetClientCredits(player, GetClientCredits(player)+Convert.ToInt32(SellPrice));
+                    AddClientCredits(player, Convert.ToInt32(SellPrice), IShopApi.WhoChangeCredits.ByBuyOrSell);
 
                     Server.NextFrame(() => {
-                        var CallbackList = _api!.ItemCallback.Find(x => x.ItemID == ItemID);
-                        if(CallbackList != null && CallbackList.OnSellItem != null) CallbackList.OnSellItem.Invoke(player, ItemID, UniqueName, SellPrice);
-                        _api!.OnClientSellItem(player, ItemID, UniqueName, SellPrice);
-
                         playerInfo[player.Slot].ItemList.RemoveAll(x => x.item_id == ItemID);
 
                         OnChooseItem(player, ItemName, UniqueName);
@@ -968,20 +1010,20 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             {
                 if(target == null || playerInfo[target.Slot] == null) continue;
 
-                SetClientCredits(target, GetClientCredits(target) + Convert.ToInt32(commandInfo.GetArg(2)));
+                AddClientCredits(target, Convert.ToInt32(commandInfo.GetArg(2)), IShopApi.WhoChangeCredits.ByAdminCommand);
                 Server.PrintToChatAll(StringExtensions.ReplaceColorTags(Localizer["Command_AddCredits", player == null ? "Console" : player.PlayerName, commandInfo.GetArg(2), target.PlayerName]));
             }
         }
         else
         {
-            string steamid = commandInfo.GetArg(1);
+            string steamid = commandInfo.GetArg(1).Replace("STEAM_1", "STEAM_0");
             var target = Utilities.GetPlayers().FirstOrDefault(x => !x.IsBot && !x.IsHLTV && x.AuthorizedSteamID!.SteamId2 == steamid);
             if(target != null)
             {
                 var playerinfo = playerInfo[target.Slot];
                 if(playerinfo != null && playerinfo.DatabaseID != -1)
                 {
-                    SetClientCredits(target, GetClientCredits(target) + Convert.ToInt32(commandInfo.GetArg(2)));
+                    AddClientCredits(target, Convert.ToInt32(commandInfo.GetArg(2)), IShopApi.WhoChangeCredits.ByAdminCommand);
                 }
             }
             else
@@ -1022,20 +1064,20 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             {
                 if(target == null || playerInfo[target.Slot] == null) continue;
 
-                SetClientCredits(target, Convert.ToInt32(commandInfo.GetArg(2)));
+                SetClientCredits(target, Convert.ToInt32(commandInfo.GetArg(2)), IShopApi.WhoChangeCredits.ByAdminCommand);
                 Server.PrintToChatAll(StringExtensions.ReplaceColorTags(Localizer["Command_SetCredits", player == null ? "Console" : player.PlayerName, commandInfo.GetArg(2), target.PlayerName]));
             }
         }
         else
         {
-            string steamid = commandInfo.GetArg(1);
+            string steamid = commandInfo.GetArg(1).Replace("STEAM_1", "STEAM_0");
             var target = Utilities.GetPlayers().FirstOrDefault(x => !x.IsBot && !x.IsHLTV && x.AuthorizedSteamID!.SteamId2 == steamid);
             if(target != null)
             {
                 var playerinfo = playerInfo[target.Slot];
                 if(playerinfo != null && playerinfo.DatabaseID != -1)
                 {
-                    SetClientCredits(target, Convert.ToInt32(commandInfo.GetArg(2)));
+                    SetClientCredits(target, Convert.ToInt32(commandInfo.GetArg(2)), IShopApi.WhoChangeCredits.ByAdminCommand);
                 }
             }
             else
@@ -1045,7 +1087,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
         }
 	}
 
-    [CommandHelper(minArgs: 2, usage: "<name/userid> <credits_count>", whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
+    [CommandHelper(minArgs: 2, usage: "<name/userid/steamid> <credits_count>", whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
 	public void CommandTakeCredits(CCSPlayerController? player, CommandInfo commandInfo)
 	{
         if(player != null && !AdminManager.PlayerHasPermissions(player, Config.AdminFlag))
@@ -1068,20 +1110,20 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             {
                 if(target == null || playerInfo[target.Slot] == null) continue;
 
-                SetClientCredits(target, GetClientCredits(target) - Convert.ToInt32(commandInfo.GetArg(2)));
+                TakeClientCredits(target, Convert.ToInt32(commandInfo.GetArg(2)), IShopApi.WhoChangeCredits.ByAdminCommand);
                 Server.PrintToChatAll(StringExtensions.ReplaceColorTags(Localizer["Command_TakeCredits", player == null ? "Console" : player.PlayerName, commandInfo.GetArg(2), target.PlayerName]));
             }
         }
         else
         {
-            string steamid = commandInfo.GetArg(1);
+            string steamid = commandInfo.GetArg(1).Replace("STEAM_1", "STEAM_0");
             var target = Utilities.GetPlayers().FirstOrDefault(x => !x.IsBot && !x.IsHLTV && x.AuthorizedSteamID!.SteamId2 == steamid);
             if(target != null)
             {
                 var playerinfo = playerInfo[target.Slot];
                 if(playerinfo != null && playerinfo.DatabaseID != -1)
                 {
-                    SetClientCredits(target, GetClientCredits(target) - Convert.ToInt32(commandInfo.GetArg(2)));
+                    TakeClientCredits(target, Convert.ToInt32(commandInfo.GetArg(2)), IShopApi.WhoChangeCredits.ByAdminCommand);
                 }
             }
             else
@@ -1147,7 +1189,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
         }
         else
         {
-            string steamid = commandInfo.GetArg(1);
+            string steamid = commandInfo.GetArg(1).Replace("STEAM_1", "STEAM_0");
             var target = Utilities.GetPlayers().FirstOrDefault(x => !x.IsBot && !x.IsHLTV && x.AuthorizedSteamID!.SteamId2 == steamid);
             if(target != null)
             {
@@ -1200,7 +1242,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
         }
         else
         {
-            string steamid = commandInfo.GetArg(1);
+            string steamid = commandInfo.GetArg(1).Replace("STEAM_1", "STEAM_0");
             var target = Utilities.GetPlayers().FirstOrDefault(x => !x.IsBot && !x.IsHLTV && x.AuthorizedSteamID!.SteamId2 == steamid);
             if(target != null)
             {
@@ -1257,8 +1299,8 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                         return;
                     }
 
-                    SetClientCredits(player, GetClientCredits(player) - (PriceSend + CreditsCount));
-                    SetClientCredits(target, CreditsCount+GetClientCredits(target));
+                    TakeClientCredits(player, PriceSend + CreditsCount, IShopApi.WhoChangeCredits.ByTransfer);
+                    AddClientCredits(target, CreditsCount, IShopApi.WhoChangeCredits.ByTransfer);
                     
                     player.PrintToChat(StringExtensions.ReplaceColorTags(Localizer["TransferCreditsSuccessSender", CreditsCount, target.PlayerName]));
                     target.PrintToChat(StringExtensions.ReplaceColorTags(Localizer["TransferCreditsSuccessTarget", CreditsCount, player.PlayerName]));
@@ -1328,9 +1370,15 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
 
         return -1;
     }
-    public void SetClientCredits(CCSPlayerController player, int Credits)
+    public void SetClientCredits(CCSPlayerController player, int Credits, IShopApi.WhoChangeCredits by_who)
     {
         if(player == null || player.IsBot || player.IsHLTV || playerInfo[player.Slot] == null || playerInfo[player.Slot].DatabaseID == -1) return;
+
+        if(by_who != IShopApi.WhoChangeCredits.IgnoreCallbackHook)
+        {
+            int? buffer = _api!.OnCreditsSet(player, Credits, by_who);
+            if(buffer != null) Credits = (int)buffer!;
+        }
 
         if(Credits < 0) Credits = 0;
 
@@ -1357,6 +1405,9 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                 throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
             }
         });
+
+        if(by_who != IShopApi.WhoChangeCredits.IgnoreCallbackHook)
+            _api!.OnCreditsSetPost(player, Credits, by_who);
     }
 
     public void SetClientCredits(string steamID, int Credits)
@@ -1380,6 +1431,143 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             catch (Exception ex)
             {
                 Logger.LogError("{SetClientCreditsDB} Failed send info in database | " + ex.Message);
+                Logger.LogDebug(ex.Message);
+                throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
+            }
+        });
+    }
+
+    public void AddClientCredits(CCSPlayerController player, int Credits, IShopApi.WhoChangeCredits by_who)
+    {
+        if(player == null || player.IsBot || player.IsHLTV || playerInfo[player.Slot] == null || playerInfo[player.Slot].DatabaseID == -1) return;
+
+        if(by_who != IShopApi.WhoChangeCredits.IgnoreCallbackHook)
+        {
+            int? buffer = _api!.OnCreditsAdd(player, Credits, by_who);
+            if(buffer != null) Credits = (int)buffer!;
+        }
+
+        if(Credits < 0) Credits = 0;
+
+        playerInfo[player.Slot].Credits += Credits;
+
+        Task.Run(async () => 
+        {
+            try
+            {
+                await using (var connection = new MySqlConnection(dbConnectionString))
+                {
+                    await connection.OpenAsync();
+                    await connection.ExecuteAsync("UPDATE `shop_players` SET `money` = `money` + @Money WHERE `id` = @ID", new
+                    {
+                        Money = Credits,
+                        ID = playerInfo[player.Slot].DatabaseID
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("{AddClientCredits} Failed send info in database | " + ex.Message);
+                Logger.LogDebug(ex.Message);
+                throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
+            }
+        });
+
+        if(by_who != IShopApi.WhoChangeCredits.IgnoreCallbackHook)
+            _api!.OnCreditsAddPost(player, Credits, by_who);
+    }
+
+    public void AddClientCredits(string steamID, int Credits)
+    {
+        if(Credits < 0) Credits = 0;
+
+        Task.Run(async () => 
+        {
+            try
+            {
+                await using (var connection = new MySqlConnection(dbConnectionString))
+                {
+                    await connection.OpenAsync();
+                    await connection.ExecuteAsync("UPDATE `shop_players` SET `money` = `money` + @Money WHERE `auth` = @Steam", new
+                    {
+                        Money = Credits,
+                        Steam = steamID
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("{AddClientCreditsDB} Failed send info in database | " + ex.Message);
+                Logger.LogDebug(ex.Message);
+                throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
+            }
+        });
+    }
+
+    public void TakeClientCredits(CCSPlayerController player, int Credits, IShopApi.WhoChangeCredits by_who)
+    {
+        if(player == null || player.IsBot || player.IsHLTV || playerInfo[player.Slot] == null || playerInfo[player.Slot].DatabaseID == -1) return;
+
+        if(by_who != IShopApi.WhoChangeCredits.IgnoreCallbackHook)
+        {
+            int? buffer = _api!.OnCreditsTake(player, Credits, by_who);
+            if(buffer != null) Credits = (int)buffer!;
+        }
+
+        if(Credits < 0) Credits = 0;
+
+        if(playerInfo[player.Slot].Credits - Credits < 0)
+            playerInfo[player.Slot].Credits = 0;
+        else
+            playerInfo[player.Slot].Credits -= Credits;
+
+        Task.Run(async () => 
+        {
+            try
+            {
+                await using (var connection = new MySqlConnection(dbConnectionString))
+                {
+                    await connection.OpenAsync();
+                    await connection.ExecuteAsync("UPDATE `shop_players` SET `money` = GREATEST(`money` - @Money, 0) WHERE `id` = @ID", new
+                    {
+                        Money = Credits,
+                        ID = playerInfo[player.Slot].DatabaseID
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("{TakeClientCredits} Failed send info in database | " + ex.Message);
+                Logger.LogDebug(ex.Message);
+                throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
+            }
+        });
+
+        if(by_who != IShopApi.WhoChangeCredits.IgnoreCallbackHook)
+            _api!.OnCreditsTakePost(player, Credits, by_who);
+    }
+
+    public void TakeClientCredits(string steamID, int Credits)
+    {
+        if(Credits < 0) Credits = 0;
+
+        Task.Run(async () => 
+        {
+            try
+            {
+                await using (var connection = new MySqlConnection(dbConnectionString))
+                {
+                    await connection.OpenAsync();
+                    await connection.ExecuteAsync("UPDATE `shop_players` SET `money` = GREATEST(`money` - @Money, 0) WHERE `auth` = @Steam", new
+                    {
+                        Money = Credits,
+                        Steam = steamID
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("{TakeClientCreditsDB} Failed send info in database | " + ex.Message);
                 Logger.LogDebug(ex.Message);
                 throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
             }

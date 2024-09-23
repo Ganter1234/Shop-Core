@@ -8,7 +8,6 @@
   <ItemGroup>
     <PackageReference Include="CounterStrikeSharp.API" Version="*"/>
     <PackageReference Include="MySqlConnector" Version="*"/>
-    <PackageReference Include="Newtonsoft.Json" Version="*"/>
     <PackageReference Include="Dapper" Version="*"/>
   </ItemGroup>
 
