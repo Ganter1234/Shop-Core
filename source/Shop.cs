@@ -18,7 +18,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
     public override string ModuleName => "Shop Core";
     public override string ModuleDescription => "Modular shop system";
     public override string ModuleAuthor => "Ganter1234";
-    public override string ModuleVersion => "2.0";
+    public override string ModuleVersion => "2.1";
     public ShopConfig Config { get; set; } = new();
     public PlayerInformation[] playerInfo = new PlayerInformation[65];
     public List<Items> ItemsList = new();
@@ -351,9 +351,8 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                         DequipAllItemsOnCategory(player, Item.Category, ItemID);
                     }
 
-                    TakeClientCredits(player, Item.BuyPrice, IShopApi.WhoChangeCredits.ByBuyOrSell);
-
                     Server.NextFrame(() => {
+                        TakeClientCredits(player, Item.BuyPrice, IShopApi.WhoChangeCredits.ByBuyOrSell);
                         OnChooseItem(player, ItemName, UniqueName);
                         player.PrintToChat(StringExtensions.ReplaceColorTags(Localizer["YouBuyItem", ItemName, Item.BuyPrice]));
                     });
@@ -619,9 +618,8 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                         });
                     }
 
-                    AddClientCredits(player, Convert.ToInt32(SellPrice), IShopApi.WhoChangeCredits.ByBuyOrSell);
-
                     Server.NextFrame(() => {
+                        AddClientCredits(player, Convert.ToInt32(SellPrice), IShopApi.WhoChangeCredits.ByBuyOrSell);
                         playerInfo[player.Slot].ItemList.RemoveAll(x => x.item_id == ItemID);
 
                         OnChooseItem(player, ItemName, UniqueName);
@@ -987,7 +985,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
 
     #region Commands
 
-    [CommandHelper(minArgs: 2, usage: "<name/userid/steamid> <credits_count>", whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
+    [CommandHelper(minArgs: 2, usage: "<name/userid/steamid2/#steamid64> <credits_count>", whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
     public void CommandAddCredits(CCSPlayerController? player, CommandInfo commandInfo)
 	{
         if(player != null && !AdminManager.PlayerHasPermissions(player, Config.AdminFlag))
@@ -1002,7 +1000,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             return;
         }
 
-        if(!commandInfo.GetArg(1).StartsWith("STEAM_"))
+        if(!commandInfo.GetArg(1).StartsWith("STEAM_") && !commandInfo.GetArg(1).StartsWith("#"))
         {
             var targets = commandInfo.GetArgTargetResult(1);
 
@@ -1016,8 +1014,9 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
         }
         else
         {
-            string steamid = commandInfo.GetArg(1).Replace("STEAM_1", "STEAM_0");
-            var target = Utilities.GetPlayers().FirstOrDefault(x => !x.IsBot && !x.IsHLTV && x.AuthorizedSteamID!.SteamId2 == steamid);
+            string steamid = commandInfo.GetArg(1).StartsWith("STEAM_") ? commandInfo.GetArg(1).Replace("STEAM_1", "STEAM_0") : commandInfo.GetArg(1).Replace("#", "");
+            var target = Utilities.GetPlayers().FirstOrDefault(x => !x.IsBot && !x.IsHLTV 
+                && commandInfo.GetArg(1).StartsWith("STEAM_") ? x.AuthorizedSteamID!.SteamId2 == steamid : Convert.ToString(x.AuthorizedSteamID!.SteamId64) == steamid);
             if(target != null)
             {
                 var playerinfo = playerInfo[target.Slot];
@@ -1028,20 +1027,18 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             }
             else
             {
-                int money = -1;
-                int newCredits = Convert.ToInt32(commandInfo.GetArg(2));
-                Task.Run(async () => 
+                if(!commandInfo.GetArg(1).StartsWith("STEAM_")) 
                 {
-                    if((money = await GetClientCredits(steamid)) != -1)
-                        SetClientCredits(steamid, money + newCredits);
-                    else
-                        Server.NextFrame(() => CustomReplyToCommand(commandInfo, Localizer["Command_FailedGetPlayerMoney"]) );
-                });
+                    ulong steam64 = Convert.ToUInt64(steamid);
+                    steamid = $"STEAM_0:{(steam64 - 76561197960265728) % 2}:{(steam64 - 76561197960265728) / 2}";
+                }
+
+                AddClientCredits(steamid, Convert.ToInt32(commandInfo.GetArg(2)));
             }
         }
 	}
 
-    [CommandHelper(minArgs: 2, usage: "<name/userid/steamid> <credits_count>", whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
+    [CommandHelper(minArgs: 2, usage: "<name/userid/steamid2/#steamid64> <credits_count>", whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
 	public void CommandSetCredits(CCSPlayerController? player, CommandInfo commandInfo)
 	{
         if(player != null && !AdminManager.PlayerHasPermissions(player, Config.AdminFlag))
@@ -1056,7 +1053,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             return;
         }
 
-        if(!commandInfo.GetArg(1).StartsWith("STEAM_"))
+        if(!commandInfo.GetArg(1).StartsWith("STEAM_") && !commandInfo.GetArg(1).StartsWith("#"))
         {
             var targets = commandInfo.GetArgTargetResult(1);
 
@@ -1070,8 +1067,9 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
         }
         else
         {
-            string steamid = commandInfo.GetArg(1).Replace("STEAM_1", "STEAM_0");
-            var target = Utilities.GetPlayers().FirstOrDefault(x => !x.IsBot && !x.IsHLTV && x.AuthorizedSteamID!.SteamId2 == steamid);
+            string steamid = commandInfo.GetArg(1).StartsWith("STEAM_") ? commandInfo.GetArg(1).Replace("STEAM_1", "STEAM_0") : commandInfo.GetArg(1).Replace("#", "");
+            var target = Utilities.GetPlayers().FirstOrDefault(x => !x.IsBot && !x.IsHLTV 
+                && commandInfo.GetArg(1).StartsWith("STEAM_") ? x.AuthorizedSteamID!.SteamId2 == steamid : Convert.ToString(x.AuthorizedSteamID!.SteamId64) == steamid);
             if(target != null)
             {
                 var playerinfo = playerInfo[target.Slot];
@@ -1082,12 +1080,18 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             }
             else
             {
+                if(!commandInfo.GetArg(1).StartsWith("STEAM_")) 
+                {
+                    ulong steam64 = Convert.ToUInt64(steamid);
+                    steamid = $"STEAM_0:{(steam64 - 76561197960265728) % 2}:{(steam64 - 76561197960265728) / 2}";
+                }
+
                 SetClientCredits(steamid, Convert.ToInt32(commandInfo.GetArg(2)));
             }
         }
 	}
 
-    [CommandHelper(minArgs: 2, usage: "<name/userid/steamid> <credits_count>", whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
+    [CommandHelper(minArgs: 2, usage: "<name/userid/steamid2/#steamid64> <credits_count>", whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
 	public void CommandTakeCredits(CCSPlayerController? player, CommandInfo commandInfo)
 	{
         if(player != null && !AdminManager.PlayerHasPermissions(player, Config.AdminFlag))
@@ -1102,7 +1106,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             return;
         }
 
-        if(!commandInfo.GetArg(1).StartsWith("STEAM_"))
+        if(!commandInfo.GetArg(1).StartsWith("STEAM_") && !commandInfo.GetArg(1).StartsWith("#"))
         {
             var targets = commandInfo.GetArgTargetResult(1);
 
@@ -1116,8 +1120,9 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
         }
         else
         {
-            string steamid = commandInfo.GetArg(1).Replace("STEAM_1", "STEAM_0");
-            var target = Utilities.GetPlayers().FirstOrDefault(x => !x.IsBot && !x.IsHLTV && x.AuthorizedSteamID!.SteamId2 == steamid);
+            string steamid = commandInfo.GetArg(1).StartsWith("STEAM_") ? commandInfo.GetArg(1).Replace("STEAM_1", "STEAM_0") : commandInfo.GetArg(1).Replace("#", "");
+            var target = Utilities.GetPlayers().FirstOrDefault(x => !x.IsBot && !x.IsHLTV 
+                && commandInfo.GetArg(1).StartsWith("STEAM_") ? x.AuthorizedSteamID!.SteamId2 == steamid : Convert.ToString(x.AuthorizedSteamID!.SteamId64) == steamid);
             if(target != null)
             {
                 var playerinfo = playerInfo[target.Slot];
@@ -1128,20 +1133,18 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             }
             else
             {
-                int money = -1;
-                int newCredits = Convert.ToInt32(commandInfo.GetArg(2));
-                Task.Run(async () => 
+                if(!commandInfo.GetArg(1).StartsWith("STEAM_")) 
                 {
-                    if((money = await GetClientCredits(steamid)) != -1)
-                        SetClientCredits(steamid, money - newCredits);
-                    else
-                        Server.NextFrame(() => CustomReplyToCommand(commandInfo, Localizer["Command_FailedGetPlayerMoney"]) );
-                });
+                    ulong steam64 = Convert.ToUInt64(steamid);
+                    steamid = $"STEAM_0:{(steam64 - 76561197960265728) % 2}:{(steam64 - 76561197960265728) / 2}";
+                }
+
+                TakeClientCredits(steamid, Convert.ToInt32(commandInfo.GetArg(2)));
             }
         }
     }
 
-    [CommandHelper(minArgs: 3, usage: "<name/userid/steamid> <unique_name> <duration/count>", whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
+    [CommandHelper(minArgs: 3, usage: "<name/userid/steamid2/#steamid64> <unique_name> <duration/count>", whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
     public void CommandAddItem(CCSPlayerController? player, CommandInfo commandInfo)
 	{
         if(player != null && !AdminManager.PlayerHasPermissions(player, Config.AdminFlag))
@@ -1165,7 +1168,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
         }
 
         var customDuration = Convert.ToInt32(commandInfo.GetArg(3));
-        if(!commandInfo.GetArg(1).StartsWith("STEAM_"))
+        if(!commandInfo.GetArg(1).StartsWith("STEAM_") && !commandInfo.GetArg(1).StartsWith("#"))
         {
             var targets = commandInfo.GetArgTargetResult(1);
 
@@ -1189,8 +1192,9 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
         }
         else
         {
-            string steamid = commandInfo.GetArg(1).Replace("STEAM_1", "STEAM_0");
-            var target = Utilities.GetPlayers().FirstOrDefault(x => !x.IsBot && !x.IsHLTV && x.AuthorizedSteamID!.SteamId2 == steamid);
+            string steamid = commandInfo.GetArg(1).StartsWith("STEAM_") ? commandInfo.GetArg(1).Replace("STEAM_1", "STEAM_0") : commandInfo.GetArg(1).Replace("#", "");
+            var target = Utilities.GetPlayers().FirstOrDefault(x => !x.IsBot && !x.IsHLTV 
+                && commandInfo.GetArg(1).StartsWith("STEAM_") ? x.AuthorizedSteamID!.SteamId2 == steamid : Convert.ToString(x.AuthorizedSteamID!.SteamId64) == steamid);
             if(target != null)
             {
                 var playerinfo = playerInfo[target.Slot];
@@ -1199,12 +1203,18 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             }
             else
             {
+                if(!commandInfo.GetArg(1).StartsWith("STEAM_")) 
+                {
+                    ulong steam64 = Convert.ToUInt64(steamid);
+                    steamid = $"STEAM_0:{(steam64 - 76561197960265728) % 2}:{(steam64 - 76561197960265728) / 2}";
+                }
+
                 GivePlayerItem(steamid, Item, customDuration);
             }
         }
 	}
 
-    [CommandHelper(minArgs: 2, usage: "<name/userid/steamid> <unique_name> [count]", whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
+    [CommandHelper(minArgs: 2, usage: "<name/userid/steamid2/#steamid64> <unique_name> [count]", whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
     public void CommandTakeItem(CCSPlayerController? player, CommandInfo commandInfo)
 	{
         if(player != null && !AdminManager.PlayerHasPermissions(player, Config.AdminFlag))
@@ -1228,7 +1238,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
         }
 
         var customCount = Convert.ToInt32(commandInfo.GetArg(3));
-        if(!commandInfo.GetArg(1).StartsWith("STEAM_"))
+        if(!commandInfo.GetArg(1).StartsWith("STEAM_") && !commandInfo.GetArg(1).StartsWith("#"))
         {
             var targets = commandInfo.GetArgTargetResult(1);
 
@@ -1242,8 +1252,9 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
         }
         else
         {
-            string steamid = commandInfo.GetArg(1).Replace("STEAM_1", "STEAM_0");
-            var target = Utilities.GetPlayers().FirstOrDefault(x => !x.IsBot && !x.IsHLTV && x.AuthorizedSteamID!.SteamId2 == steamid);
+            string steamid = commandInfo.GetArg(1).StartsWith("STEAM_") ? commandInfo.GetArg(1).Replace("STEAM_1", "STEAM_0") : commandInfo.GetArg(1).Replace("#", "");
+            var target = Utilities.GetPlayers().FirstOrDefault(x => !x.IsBot && !x.IsHLTV 
+                && commandInfo.GetArg(1).StartsWith("STEAM_") ? x.AuthorizedSteamID!.SteamId2 == steamid : Convert.ToString(x.AuthorizedSteamID!.SteamId64) == steamid);
             if(target != null)
             {
                 var playerinfo = playerInfo[target.Slot];
@@ -1252,6 +1263,12 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             }
             else
             {
+                if(!commandInfo.GetArg(1).StartsWith("STEAM_")) 
+                {
+                    ulong steam64 = Convert.ToUInt64(steamid);
+                    steamid = $"STEAM_0:{(steam64 - 76561197960265728) % 2}:{(steam64 - 76561197960265728) / 2}";
+                }
+
                 TakePlayerItem(steamid, Item, customCount);
             }
         }
