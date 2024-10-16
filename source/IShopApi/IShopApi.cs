@@ -1,5 +1,6 @@
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Capabilities;
+using CounterStrikeSharp.API.Modules.Menu;
 
 namespace ShopAPI;
 
@@ -105,6 +106,14 @@ public interface IShopApi
     ///
 	bool IsAdmin(CCSPlayerController player);
 
+	/// <summary>
+	/// Создает меню на основе конфигурации.
+	/// Если UseCenterMenu равно false, создается ChatMenu; если true, то CenterHtmlMenu.
+	/// </summary>
+	/// <param name="title">Заголовок меню.</param>
+	/// <returns>Экземпляр IMenu.</returns>
+	IMenu CreateMenu(string title);
+	
     ///
     /// <summary>
     /// Добавить подменю в меню функций
@@ -307,6 +316,15 @@ public interface IShopApi
     /// <returns>Поменялось количество предметов или нет</returns>
     ///
 	bool SetItemCount(int itemID, int count);
+	
+	/// <summary>
+	/// Получить переведенный текст по ключу.
+	/// </summary>
+	/// <param name="player">Игрок для которого нужно получить перевод (может быть null).</param>
+	/// <param name="name">Ключ перевода.</param>
+	/// <param name="args">Аргументы форматирования.</param>
+	/// <returns>Переведенная строка.</returns>
+	string GetTranslatedText(CCSPlayerController? player, string name, params object[] args);
 	
 	// Игрок, Айди предмета, Название категории, Уникальное имя предмета, Цена покупки, Цена продажи, Длительность предмета, Кол-во предмета. Return: Continue = Продолжить без изменений, другое заблокирует покупку
 	event Action<CCSPlayerController, int, string, string, int, int, int, int>? ClientBuyItem;
