@@ -11,6 +11,7 @@ using ShopAPI;
 using Timer = CounterStrikeSharp.API.Modules.Timers.Timer;
 using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Core.Translations;
+using Microsoft.Extensions.Localization;
 
 namespace Shop;
 public class Shop : BasePlugin, IPluginConfig<ShopConfig>
@@ -18,7 +19,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
     public override string ModuleName => "Shop Core";
     public override string ModuleDescription => "Modular shop system";
     public override string ModuleAuthor => "Ganter1234";
-    public override string ModuleVersion => "2.1";
+    public override string ModuleVersion => "2.2";
     public ShopConfig Config { get; set; } = new();
     public PlayerInformation[] playerInfo = new PlayerInformation[65];
     public List<Items> ItemsList = new();
@@ -26,6 +27,8 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
     public string dbConnectionString = string.Empty;
     public CCSPlayerController[] transPlayer = new CCSPlayerController[65];
     private Api.ApiShop? _api;
+    public new IStringLocalizer Localizer => base.Localizer;
+    
     public override void Load(bool hotReload)
     {
         _api = new Api.ApiShop(this); 
@@ -56,7 +59,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
     #region Menus
     public IMenu CreateMenu(string title)
     {
-        if(Config.UseCenterMenu == false)
+        if (Config.UseCenterMenu == false)
         {
             ChatMenu menu = new ChatMenu(title) { ExitButton = true };
             return menu;
@@ -186,7 +189,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
 
         menu.Open(player);
     }
-
     public void OnChooseItem(CCSPlayerController player, string ItemName, string UniqueName)
     {
         var Item = ItemsList.Find(x => x.UniqueName == UniqueName);

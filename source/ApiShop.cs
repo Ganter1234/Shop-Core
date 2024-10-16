@@ -1,5 +1,7 @@
 using CounterStrikeSharp.API.Core;
+using CounterStrikeSharp.API.Core.Translations;
 using CounterStrikeSharp.API.Modules.Admin;
+using CounterStrikeSharp.API.Modules.Menu;
 using ShopAPI;
 
 namespace Shop.Api;
@@ -202,7 +204,7 @@ public class ApiShop : IShopApi
 
     public bool IsClientAuthorized(CCSPlayerController player)
     {
-        return _shop.playerInfo[player.Slot].DatabaseID != -1;
+        return player.IsValid && !player.IsBot && !player.IsHLTV && _shop.playerInfo[player.Slot] != null && _shop.playerInfo[player.Slot].DatabaseID != -1;
     }
 
     public int GetItemIdByUniqueName(string uniqueName)
@@ -232,6 +234,11 @@ public class ApiShop : IShopApi
         return AdminManager.PlayerHasPermissions(player, _shop.Config.AdminFlag);
     }
 
+    public IMenu CreateMenu(string title)
+    {
+        return _shop.CreateMenu(title);
+    }
+    
     public void AddToFunctionsMenu(string display, Action<CCSPlayerController> openMenu)
     {
         FunctionsCallbacks? CallbackList;
@@ -274,6 +281,18 @@ public class ApiShop : IShopApi
         }
     }
 
+    public string GetTranslatedText(CCSPlayerController? player, string name, params object[] args)
+    {
+        if (player != null)
+        {
+            return _shop.Localizer.ForPlayer(player, name, args);
+        }
+        else
+        {
+            return _shop.Localizer[name, args];
+        }
+    } 
+    
     public int? OnCreditsSet(CCSPlayerController player, int credits, IShopApi.WhoChangeCredits by_who)
     {
         return CreditsSet?.Invoke(player, credits, by_who);
