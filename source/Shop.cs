@@ -19,7 +19,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
     public override string ModuleName => "Shop Core";
     public override string ModuleDescription => "Modular shop system";
     public override string ModuleAuthor => "Ganter1234";
-    public override string ModuleVersion => "2.2";
+    public override string ModuleVersion => "2.3";
     public ShopConfig Config { get; set; } = new();
     public PlayerInformation[] playerInfo = new PlayerInformation[65];
     public List<Items> ItemsList = new();
@@ -809,7 +809,24 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             }
         });
 	}
+    public bool? GetItemState(string uniqueName, CCSPlayerController player)
+    {
+        if (player == null)
+            return null;
+        
+        if (player.Slot < 0 || player.Slot >= playerInfo.Length || playerInfo[player.Slot] == null)
+            return null;
+        
+        var item = ItemsList.Find(x => x.UniqueName.Equals(uniqueName, StringComparison.OrdinalIgnoreCase));
+        if (item == null)
+            return null;
+        
+        var itemState = playerInfo[player.Slot].ItemStates.Find(x => x.ItemID == item.ItemID);
+        if (itemState == null)
+            return null;
 
+        return itemState.State == 1;
+    }
     public void TimerDeleteTimeleftItem(CCSPlayerController player, ItemInfo Item)
     {
         if(!player.IsValid)

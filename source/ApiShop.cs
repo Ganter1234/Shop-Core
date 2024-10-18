@@ -88,7 +88,18 @@ public class ApiShop : IShopApi
         if(_shop.CategoryList.TryGetValue(CategoryName, out string? value) == false)
             _shop.CategoryList.Add(CategoryName, DisplayName);
     }
+    
+    public bool? GetItemState(string uniqueName, CCSPlayerController player)
+    {
+        if (player == null)
+            return null;
+        
+        if (player.Slot < 0 || player.Slot >= _shop.playerInfo.Length || _shop.playerInfo[player.Slot] == null)
+            return null;
 
+        return _shop.GetItemState(uniqueName, player);
+    }
+    
     public async Task<int> AddItem(string UniqueName, string ItemName, string CategoryName, int BuyPrice, int SellPrice, int Duration, int Count)
     {
         int id = -1;
