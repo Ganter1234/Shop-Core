@@ -147,6 +147,14 @@ public interface IShopApi
     ///
     void OpenMainMenu(CCSPlayerController player);
 
+    /// <summary>
+    /// Получить состояние предмета у игрока.
+    /// </summary>
+    /// <param name="uniqueName">Уникальное имя предмета.</param>
+    /// <param name="player">Игрок, у которого нужно проверить предмет.</param>
+    /// <returns>True, если предмет включен, иначе False. Возвращает null, если предмет или игрок не найдены.</returns>
+    bool? GetItemState(string uniqueName, CCSPlayerController player);    
+    
     ///
     /// <summary>
     /// Получить айди предмета по уникальному имени предмета
