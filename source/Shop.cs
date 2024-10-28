@@ -285,7 +285,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
     {
         var result = _api!.OnClientBuyItemPre(player, ItemID, Item.Category, UniqueName, Item.BuyPrice, Item.SellPrice, Item.Duration, Item.Count);
 
-        if(result != HookResult.Continue)
+        if(result == HookResult.Handled || result == HookResult.Stop)
         {
             return;
         }
