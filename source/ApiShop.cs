@@ -8,6 +8,7 @@ namespace Shop.Api;
 public class ApiShop : IShopApi
 {
     public event Action<CCSPlayerController, int, string, string, int, int, int, int>? ClientBuyItem;
+    public event Func<CCSPlayerController, int, string, string, int, int, int, int, HookResult?>? ClientBuyItemPre;
     public event Action<CCSPlayerController, int, string, int>? ClientSellItem;
     public event Action<CCSPlayerController, int, string, int>? ClientToggleItem;
     public event Action<CCSPlayerController, int, string, int>? ClientUseItem;
@@ -184,6 +185,11 @@ public class ApiShop : IShopApi
     public void OnClientBuyItem(CCSPlayerController player, int ItemID, string CategoryName, string UniqueName, int BuyPrice, int SellPrice, int Duration, int Count)
     {
         ClientBuyItem?.Invoke(player, ItemID, CategoryName, UniqueName, BuyPrice, SellPrice, Duration, Count);
+    }
+
+    public HookResult? OnClientBuyItemPre(CCSPlayerController player, int ItemID, string CategoryName, string UniqueName, int BuyPrice, int SellPrice, int Duration, int Count)
+    {
+        return ClientBuyItemPre?.Invoke(player, ItemID, CategoryName, UniqueName, BuyPrice, SellPrice, Duration, Count);
     }
 
     public void OnClientSellItem(CCSPlayerController player, int ItemID, string UniqueName, int SellPrice)
