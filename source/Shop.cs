@@ -287,6 +287,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
 
         if(result == HookResult.Handled || result == HookResult.Stop)
         {
+            OnChooseItem(player, ItemName, UniqueName);
             return;
         }
 
