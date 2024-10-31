@@ -19,7 +19,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
     public override string ModuleName => "Shop Core";
     public override string ModuleDescription => "Modular shop system";
     public override string ModuleAuthor => "Ganter1234";
-    public override string ModuleVersion => "2.3";
+    public override string ModuleVersion => "2.4";
     public ShopConfig Config { get; set; } = new();
     public PlayerInformation[] playerInfo = new PlayerInformation[65];
     public List<Items> ItemsList = new();
@@ -283,6 +283,14 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
     }
     public void OnChooseBuy(CCSPlayerController player, string ItemName, string UniqueName, int ItemID, Items Item, ItemInfo? playerList)
     {
+        var result = _api!.OnClientBuyItemPre(player, ItemID, Item.Category, UniqueName, Item.BuyPrice, Item.SellPrice, Item.Duration, Item.Count);
+
+        if(result == HookResult.Handled || result == HookResult.Stop)
+        {
+            OnChooseItem(player, ItemName, UniqueName);
+            return;
+        }
+
         if(Item.BuyPrice > GetClientCredits(player))
         {
             player.PrintToChat(StringExtensions.ReplaceColorTags(Localizer["NotEnoughMoney"]));

@@ -336,6 +336,9 @@ public interface IShopApi
 	
 	// Игрок, Айди предмета, Название категории, Уникальное имя предмета, Цена покупки, Цена продажи, Длительность предмета, Кол-во предмета. Return: Continue = Продолжить без изменений, другое заблокирует покупку
 	event Action<CCSPlayerController, int, string, string, int, int, int, int>? ClientBuyItem;
+
+    // Игрок, Айди предмета, Название категории, Уникальное имя предмета, Цена покупки, Цена продажи, Длительность предмета, Кол-во предмета. Return: Continue = Продолжить без изменений, другое заблокирует покупку
+	event Func<CCSPlayerController, int, string, string, int, int, int, int, HookResult?>? ClientBuyItemPre;
 	
 	// Игрок, Айди предмета, Уникальное имя предмета, Цена продажи. Return: Continue = Продолжить без изменений, другое заблокирует продажу
 	event Action<CCSPlayerController, int, string, int>? ClientSellItem;
