@@ -20,7 +20,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
     public override string ModuleName => "Shop Core";
     public override string ModuleDescription => "Modular shop system";
     public override string ModuleAuthor => "Ganter1234";
-    public override string ModuleVersion => "2.5";
+    public override string ModuleVersion => "2.6";
     public ShopConfig Config { get; set; } = new();
     public PlayerInformation[] playerInfo = new PlayerInformation[65];
     public List<Items> ItemsList = new();
@@ -506,10 +506,14 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                 });
             }
         }
-        menu.AddMenuOption(Localizer["Menu_ChooseItemSell", Item.SellPrice], (player, _) =>
+
+        if(Item.SellPrice != -1)
         {
-            OnChooseSell(player, ItemName, UniqueName, itemid, Item.SellPrice, list);
-        }, list == null);
+            menu.AddMenuOption(Localizer["Menu_ChooseItemSell", Item.SellPrice], (player, _) =>
+            {
+                OnChooseSell(player, ItemName, UniqueName, itemid, Item.SellPrice, list);
+            }, list == null);
+        }
 
         menu.Open(player);
     }
@@ -878,7 +882,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
 
                     Server.NextFrame(() => {
                         AddClientCredits(player, Convert.ToInt32(SellPrice), IShopApi.WhoChangeCredits.ByBuyOrSell);
-                        if(new_count == 0) playerInfo[player.Slot].ItemList.RemoveAll(x => x.item_id == ItemID);
+                        if(new_count <= 0) playerInfo[player.Slot].ItemList.RemoveAll(x => x.item_id == ItemID);
 
                         OnChooseItem(player, ItemName, UniqueName);
                         player.PrintToChat(StringExtensions.ReplaceColorTags(Localizer["YouSellItem", ItemName, SellPrice]));
@@ -1136,7 +1140,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
 	{
 		if (config.DatabaseHost.Length < 1 || config.DatabaseName.Length < 1 || config.DatabaseUser.Length < 1)
 		{
-			throw new Exception("[SHOP] You need to setup Database credentials in config!");
+			throw new ArgumentException("[SHOP] You need to setup Database credentials in config!");
 		}
 
 		MySqlConnectionStringBuilder builder = new MySqlConnectionStringBuilder
@@ -1209,12 +1213,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
 
     public async Task<int> AddItemInDB(string Category, string UniqueName, string ItemName, int BuyPrice, int SellPrice, int Duration, int Count)
     {
-        if(ItemsList.Find(item => item.UniqueName == UniqueName) != null)
-        {
-            Logger.LogError($"[SHOP] An item with this unique name ({UniqueName}) already exists in the other category!");
-            return -1;
-        }
-
         int item_id;
         try
         {

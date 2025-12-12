@@ -283,10 +283,11 @@ public interface IShopApi
     /// <summary>
     /// Получить переведенный текст по ключу.
     /// </summary>
+    /// <param name="player">Игрок язык которого нужно получить. (null если получить от языка сервера)</param>
     /// <param name="name">Ключ перевода.</param>
     /// <param name="args">Аргументы форматирования.</param>
     /// <returns>Переведенная строка.</returns>
-    string GetTranslatedText(string name, params object[] args);
+    string GetTranslatedText(CCSPlayerController? player, string name, params object[] args);
 
     /// <summary>
     /// Событие покупки предмета

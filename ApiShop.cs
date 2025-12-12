@@ -2,6 +2,7 @@ using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Translations;
 using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Modules.Menu;
+using Microsoft.Extensions.Logging;
 using ShopAPI;
 
 namespace Shop.Api;
@@ -134,6 +135,22 @@ public class ApiShop : IShopApi
     
     public async Task<int> AddItem(string UniqueName, string ItemName, string CategoryName, int BuyPrice, int SellPrice, int Duration, int Count)
     {
+        /*Лучше сюда пихать проверки на валидацию которые не связаны уже с созданными предметами*/
+        bool hasDuration = Duration >= 0;
+        bool hasCount = Count > 0;
+
+        if (hasDuration && hasCount)
+        {
+            _shop.Logger.LogError($"[SHOP] Item {UniqueName} cannot have BOTH Duration and Count!");
+            return -1;
+        }
+
+        if (!hasDuration && !hasCount)
+        {
+            _shop.Logger.LogError($"[SHOP] Item {UniqueName} must has invalid Duration ({Duration}) OR Count ({Count})!");
+            return -1;
+        }
+
         int id = -1;
         int index = -1;
         if((index = _shop.ItemsList.FindIndex(x => x.UniqueName == UniqueName && x.Category == CategoryName)) == -1)
@@ -148,6 +165,12 @@ public class ApiShop : IShopApi
             _shop.ItemsList[index].Duration = Duration;
             _shop.ItemsList[index].Count = Count;
             id = _shop.ItemsList[index].ItemID;
+        }
+
+        if(_shop.ItemsList.Find(item => item.UniqueName == UniqueName) != null)
+        {
+            _shop.Logger.LogError($"[SHOP] An item with this unique name ({UniqueName}) already exists in the other category!");
+            return -1;
         }
         return id;
     }
@@ -329,10 +352,17 @@ public class ApiShop : IShopApi
         }
     }
 
-    public string GetTranslatedText(string name, params object[] args)
+    public string GetTranslatedText(CCSPlayerController? player, string name, params object[] args)
     {
-        return _shop.Localizer[name, args];
-    } 
+        if (player != null)
+        {
+            return _shop.Localizer.ForPlayer(player, name, args);
+        }
+        else
+        {
+            return _shop.Localizer[name, args];
+        }
+    }
     
     public int? OnCreditsSet(CCSPlayerController player, int credits, IShopApi.WhoChangeCredits by_who)
     {
