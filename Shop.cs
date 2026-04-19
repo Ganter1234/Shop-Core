@@ -20,7 +20,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
     public override string ModuleName => "Shop Core";
     public override string ModuleDescription => "Modular shop system";
     public override string ModuleAuthor => "Ganter1234";
-    public override string ModuleVersion => "2.6";
+    public override string ModuleVersion => "2.7";
     public ShopConfig Config { get; set; } = new();
     public PlayerInformation[] playerInfo = new PlayerInformation[65];
     public List<Items> ItemsList = new();
@@ -918,14 +918,14 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                 {
                     await connection.OpenAsync();
                     // Проверка на наличие игрока в базе
-                    var data = await connection.QueryAsync("SELECT `id`, `money` FROM `shop_players` WHERE `auth` = @Auth;", new
+                    var data = await connection.QueryFirstOrDefaultAsync("SELECT `id`, `money` FROM `shop_players` WHERE `auth` = @Auth;", new
                     {
                         Auth = steamid
                     });
 
-                    if(data != null && data.Count() > 0)
+                    if(data != null && data!.Count() > 0)
                     {
-                        foreach(var row in data.ToList())
+                        foreach(var row in data!.ToList())
                         {
                             playerInfo[playerSlot] = new PlayerInformation
                             {
@@ -974,14 +974,14 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                     }
 
                     // Загрузка предметов 
-                    data = await connection.QueryAsync("SELECT * FROM `shop_boughts` WHERE `player_id` = @playerID;", new
+                    data = await connection.QueryFirstOrDefaultAsync("SELECT * FROM `shop_boughts` WHERE `player_id` = @playerID;", new
                     {
                         playerID = playerInfo[playerSlot].DatabaseID
                     });
                     
-                    if(data != null && data.Count() > 0)
+                    if(data != null && data!.Count() > 0)
                     {
-                        foreach(var row in data.ToList())
+                        foreach(var row in data!.ToList())
                         {
                             playerInfo[playerSlot].ItemList.Add(new ItemInfo(
                                 (int)row.item_id, (int)row.count, (int)row.duration,
@@ -1033,14 +1033,14 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                     }
 
                     // Загрузка состояний предметов
-                    data = await connection.QueryAsync("SELECT * FROM `shop_toggles` WHERE `player_id` = @playerID;", new
+                    data = await connection.QueryFirstOrDefaultAsync("SELECT * FROM `shop_toggles` WHERE `player_id` = @playerID;", new
                     {
                         playerID = playerInfo[playerSlot].DatabaseID
                     });
 
-                    if(data != null && data.Count() > 0)
+                    if(data != null && data!.Count() > 0)
                     {
-                        foreach(var row in data.ToList())
+                        foreach(var row in data!.ToList())
                         {
                             int itemid = (int)row.item_id;
                             int state = (int)row.state;
