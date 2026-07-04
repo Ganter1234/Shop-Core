@@ -35,6 +35,6 @@ css_take_item - Отобрать предмет у игрока (Пример cs
 # Установка
 Установить [Metamod:Source](https://www.sourcemm.net/downloads.php?branch=dev) и [CounterStrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp/releases)  
 Установить [MenuManager](https://github.com/Stimayk/MenuManagerCS2) для работы WASD меню (Необязательно)  
-Скопировать содержимое архива в папку /game/csgo/addons/counterstrikesharp
-Отредактировать конфиг под себя
+Скопировать содержимое архива в папку /game/csgo/addons/counterstrikesharp  
+Отредактировать конфиг под себя  
 Перезапустить сервер или принудительно загрузить плагин с помощью команды css_plugins load
