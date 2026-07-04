@@ -8,7 +8,7 @@ Modularity is supported
 ```
 css_shop - Main shop menu (Default)
 
-// These commands are available to the user specified by the “AdminFlag” parameter
+// These commands are available to the user specified by the "AdminFlag" parameter
 css_add_credits - Add credits to a player (Example: css_add_credits <nickname/user_id/Steam_ID2/#Steam_ID64> <number of credits>)
 css_set_credits - Set credits for a player (Example: css_set_credits <nickname/user_id/Steam_ID2/#Steam_ID64> <number_of_credits>)
 css_take_credits - Take credits from a player (Example: css_take_credits <nickname/user_id/Steam_ID2/#Steam_ID64> <number_of_credits>)
@@ -19,16 +19,16 @@ css_take_item - Take an item from a player (Example: css_take_item <nickname/use
 # Config
 ```json
 {
-    “DatabaseHost”: “” // Database host
-    “DatabasePort”: 3306 // Database port
-    “DatabaseUser”: “” /// Database user
-    “DatabasePassword”: “” // Database user password
-	“DatabaseName”: “” // Database name
-    “Commands”: “css_shop;css_store” // Commands to open the main store menu
-    “UseCenterMenu”: false // Use CenterMenu or ChatMenu
-	“StartCredits”: 0 // Player's starting number of credits
-    “TransCreditsPercent”: 5 // Commission percentage for credit transfers (-1 to disable transfers)
-    “AdminFlag”: “@css/root” // Flag required for the player to have admin privileges
+    "DatabaseHost": "" // Database host
+    "DatabasePort": 3306 // Database port
+    "DatabaseUser": "" /// Database user
+    "DatabasePassword": "" // Database user password
+	"DatabaseName": "" // Database name
+    "Commands": "css_shop;css_store" // Commands to open the main store menu
+    "UseCenterMenu": false // Use CenterMenu or ChatMenu
+	"StartCredits": 0 // Player's starting number of credits
+    "TransCreditsPercent": 5 // Commission percentage for credit transfers (-1 to disable transfers)
+    "AdminFlag": "@css/root" // Flag required for the player to have admin privileges
 }
 ```
 
