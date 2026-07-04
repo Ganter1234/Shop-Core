@@ -1,7 +1,7 @@
 [<kbd><br>🇷🇺 Russian README<br><br></kbd>](./README_RU.md)
 
 # Shop Core
-A shop system where you can buy items with credits
+A shop system where you can buy items with credits  
 Modularity is supported
 
 # Commands
