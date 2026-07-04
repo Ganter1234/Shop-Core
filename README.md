@@ -34,7 +34,7 @@ css_take_item - Take an item from a player (Example: css_take_item <nickname/use
 
 # Installation
 Install [Metamod:Source](https://www.sourcemm.net/downloads.php?branch=dev) and [CounterStrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp/releases)  
-Install [MenuManager] (https://github.com/Stimayk/MenuManagerCS2) to enable the WASD menu (Optional)  
+Install [MenuManager](https://github.com/Stimayk/MenuManagerCS2) to enable the WASD menu (Optional)  
 Copy the contents of the archive to the /game/csgo/addons/counterstrikesharp folder
 Edit the config file to suit your needs
 Restart the server or force-load the plugin using the command css_plugins load
