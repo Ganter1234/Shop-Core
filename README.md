@@ -1,47 +1,40 @@
-# Shop-Core
-Ядро плагина магазина для CS2
+[<kbd><br>🇷🇺 Russian README<br><br></kbd>](./README_RU.md)
 
-Система магазина где можно купить какие либо предметы
-Имеется поддержка модульности
+# Shop Core
+A shop system where you can buy items with credits
+Modularity is supported
 
-Огромное спасибо bbrp7 за спонсирование!
+# Commands
+```
+css_shop - Main shop menu (Default)
 
-ДЛЯ РАБОТЫ ПЛАГИНА ЛУЧШЕ ИСПОЛЬЗУЙТЕ ВЕРСИЮ CSSHARP 213 И ВЫШЕ!!!
+// These commands are available to the user specified by the “AdminFlag” parameter
+css_add_credits - Add credits to a player (Example: css_add_credits <nickname/user_id/Steam_ID2/#Steam_ID64> <number of credits>)
+css_set_credits - Set credits for a player (Example: css_set_credits <nickname/user_id/Steam_ID2/#Steam_ID64> <number_of_credits>)
+css_take_credits - Take credits from a player (Example: css_take_credits <nickname/user_id/Steam_ID2/#Steam_ID64> <number_of_credits>)
+css_add_item - Add an item to a player (Example: css_add_item <nickname/user_id/Steam_ID2/#Steam_ID64> <unique_item_name> <duration/amount>)
+css_take_item - Take an item from a player (Example: css_take_item <nickname/user_id/Steam_ID2/#Steam_ID64> <unique_item_name> [amount])
+``` 
 
-Команды:
+# Config
+```json
+{
+    “DatabaseHost”: “” // Database host
+    “DatabasePort”: 3306 // Database port
+    “DatabaseUser”: “” /// Database user
+    “DatabasePassword”: “” // Database user password
+	“DatabaseName”: “” // Database name
+    “Commands”: “css_shop;css_store” // Commands to open the main store menu
+    “UseCenterMenu”: false // Use CenterMenu or ChatMenu
+	“StartCredits”: 0 // Player's starting number of credits
+    “TransCreditsPercent”: 5 // Commission percentage for credit transfers (-1 to disable transfers)
+    “AdminFlag”: “@css/root” // Flag required for the player to have admin privileges
+}
+```
 
-css_shop - Главное меню магазина (По умолчанию)
-
-Данные команды доступны флагу который указан в параметре "AdminFlag"
-
-css_add_credits - Добавить кредиты игроку (Пример css_add_credits <ник/юзер_айди/стим_айди2/#стим_айди64> <кол-во кредитов>)
-
-css_set_credits - Установить кредиты игроку (Пример css_set_credits <ник/юзер_айди/стим_айди2/#стим_айди64> <кол-во кредитов>)
-
-css_take_credits - Отобрать кредиты у игрока (Пример css_take_credits <ник/юзер_айди/стим_айди2/#стим_айди64> <кол-во кредитов>)
-
-css_add_item - Добавить предмет игроку (Пример css_add_item <ник/юзер_айди/стим_айди2/#стим_айди64> <уникальное_имя_предмета> <длительность/количество>)
-
-css_take_item - Отобрать предмет у игрока (Пример css_take_item <ник/юзер_айди/стим_айди2/#стим_айди64> <уникальное_имя_предмета> [количество])
-
-Переменные:
-
-"DatabaseHost": "" - Хост базы данных
-
-"DatabasePort": 3306 - Порт базы данных
-
-"DatabaseUser": "" - Пользователь базы данных
-
-"DatabasePassword": "" - Пароль от пользователя базы данных
-
-"DatabaseName": "" - Название базы данных
-
-"Commands": "css_shop;css_store" - Команды для открытия главного меню магазина
-
-"UseCenterMenu": false - Использовать CenterMenu или ChatMenu
-
-"StartCredits": 0 - Стартовое количество кредитов у игрока
-
-"TransCreditsPercent": 5 - Процент комиссии при передачи кредитов (-1 выключить передачу)
-
-"AdminFlag": "@css/root" - Флаг который нужен игроку для прав администратора
+# Installation
+Install [Metamod:Source](https://www.sourcemm.net/downloads.php?branch=dev) and [CounterStrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp/releases)  
+Install [MenuManager] (https://github.com/Stimayk/MenuManagerCS2) to enable the WASD menu (Optional)  
+Copy the contents of the archive to the /game/csgo/addons/counterstrikesharp folder
+Edit the config file to suit your needs
+Restart the server or force-load the plugin using the command css_plugins load
