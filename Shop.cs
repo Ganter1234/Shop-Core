@@ -20,7 +20,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
     public override string ModuleName => "Shop Core";
     public override string ModuleDescription => "Modular shop system";
     public override string ModuleAuthor => "Ganter1234";
-    public override string ModuleVersion => "2.7";
+    public override string ModuleVersion => "2.8";
     public ShopConfig Config { get; set; } = new();
     public PlayerInformation[] playerInfo = new PlayerInformation[65];
     public List<Items> ItemsList = new();
@@ -39,6 +39,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
         CategoryList.Clear();
 
         RegisterListener<Listeners.OnClientAuthorized>(OnClientAuthorized);
+        RegisterListener<Listeners.OnClientDisconnectPost>(OnClientDisconnect);
 
         if (hotReload)
         {
@@ -240,7 +241,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                         }
                     }
 
-                    // В будущем заменить подсчет кол-во предметов на такой вариант
                     if (menu.MenuOptions.Count == 0) menu.AddMenuOption(Localizer["Menu_AdminItemsNotFound"], null!, true);
 
                     menu.PostSelectAction = PostSelectAction.Nothing;
@@ -250,7 +250,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                 {
                     var menu = CreateMenu(Localizer["Menu_AdminChooseTakeItem"]);
 
-                    foreach (var il in playerInfo[player.Slot].ItemList)
+                    foreach (var il in playerInfo[target.Slot].ItemList)
                     {
                         var info = ItemsList.Find(x => x.ItemID == il.item_id);
                         if (info != null && info.Category == category.Key)
@@ -273,7 +273,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                         }
                     }
 
-                    // В будущем заменить подсчет кол-во предметов на такой вариант
                     if (menu.MenuOptions.Count == 0) menu.AddMenuOption(Localizer["Menu_AdminItemsNotFound"], null!, true);
 
                     menu.PostSelectAction = PostSelectAction.Nothing;
@@ -380,10 +379,8 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
 
     public void CreateCategoryMenu(IMenu menu, bool IsInventory)
     {
-        int count = 0;
         foreach(var category in CategoryList)
         {
-            count++;
             menu.AddMenuOption(category.Value, (player, _) =>
             {
                 if(!IsInventory) OpenCategoryMenu(player, category.Key);
@@ -391,7 +388,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             });
         }
 
-        if(count == 0) menu.AddMenuOption(Localizer["Menu_CategoriesItemsNotFound"], null!, true);
+        if (menu.MenuOptions.Count == 0) menu.AddMenuOption(Localizer["Menu_CategoriesItemsNotFound"], null!, true);
     }
 
     public void OpenCategoryMenu(CCSPlayerController player, string CategoryName)
@@ -545,6 +542,8 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
         if(CallbackList != null && CallbackList.OnBuyItem != null) 
             if(CallbackList.OnBuyItem.Invoke(player, ItemID, Item.Category, UniqueName, Item.BuyPrice, Item.SellPrice, Item.Duration, Item.Count) != HookResult.Continue)
                 return;
+
+        TakeClientCredits(player, Item.BuyPrice, IShopApi.WhoChangeCredits.ByBuyOrSell);
         _api!.OnClientBuyItem(player, ItemID, Item.Category, UniqueName, Item.BuyPrice, Item.SellPrice, Item.Duration, Item.Count);
 
         Task.Run(async () => 
@@ -576,11 +575,10 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                     else
                     {
                         int index = playerInfo[player.Slot].ItemList.IndexOf(playerList);
-                        int new_count = playerInfo[player.Slot].ItemList[index].count += 1;
+                        playerInfo[player.Slot].ItemList[index].count += 1;
 
-                        await connection.ExecuteAsync("UPDATE `shop_boughts` SET `count` = @Count WHERE `player_id` = @playerID AND `item_id` = @itemID;", new
+                        await connection.ExecuteAsync("UPDATE `shop_boughts` SET `count` = `count` + 1 WHERE `player_id` = @playerID AND `item_id` = @itemID;", new
                         {
-                            Count = playerInfo[player.Slot].ItemList[index].count + 1,
                             playerID = playerInfo[player.Slot].DatabaseID,
                             itemID = ItemID
                         });
@@ -607,7 +605,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                     }
 
                     Server.NextFrame(() => {
-                        TakeClientCredits(player, Item.BuyPrice, IShopApi.WhoChangeCredits.ByBuyOrSell);
                         OnChooseItem(player, ItemName, UniqueName);
                         player.PrintToChat(StringExtensions.ReplaceColorTags(Localizer["YouBuyItem", ItemName, Item.BuyPrice]));
                     });
@@ -616,8 +613,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             catch (Exception ex)
             {
                 Logger.LogError("{OnChooseBuy} Failed send info in database | " + ex.Message);
-                Logger.LogDebug(ex.Message);
-                throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
+                Server.NextFrame(() => { if(player.IsValid) AddClientCredits(player, Item.BuyPrice, IShopApi.WhoChangeCredits.IgnoreCallbackHook); });
             }
         });
     }
@@ -627,6 +623,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
         // state item
         var Itemlist = ItemsList.Find(x => x.ItemID == ItemID);
         int Index = playerInfo[player.Slot].ItemStates.FindIndex(x => x.ItemID == ItemID)!;
+        if (Index < 0) return false;
         int NewState = 0;
         
         // count item
@@ -662,7 +659,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
 
                     if (playerList.count <= -1)
                     {
-                        // TODO: Проверить эту функцию
                         if (playerList.duration > 0 && Itemlist != null)
                         {
                             int timeleft = playerList.duration + playerList.buy_time - (int)DateTimeOffset.Now.ToUnixTimeSeconds();
@@ -686,13 +682,19 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                                 else
                                 {
                                     int ind = playerInfo[player.Slot].ItemList.FindIndex(x => x.item_id == ItemID);
-                                    playerInfo[player.Slot].ItemList[ind].timeleft = timeleft;
-                                    Server.NextFrame(() =>
+                                    if (ind >= 0)
                                     {
-                                        ind = playerInfo[player.Slot].ItemTimeleft.FindIndex(x => x.ItemID == ItemID);
-                                        playerInfo[player.Slot].ItemTimeleft[ind].TimeleftTimer.Kill();
-                                        playerInfo[player.Slot].ItemTimeleft.RemoveAt(ind);
-                                    });
+                                        playerInfo[player.Slot].ItemList[ind].timeleft = timeleft;
+                                        Server.NextFrame(() =>
+                                        {
+                                            int ind = playerInfo[player.Slot].ItemTimeleft.FindIndex(x => x.ItemID == ItemID);
+                                            if (ind >= 0)
+                                            {
+                                                playerInfo[player.Slot].ItemTimeleft[ind].TimeleftTimer.Kill();
+                                                playerInfo[player.Slot].ItemTimeleft.RemoveAt(ind);
+                                            }
+                                        });
+                                    }
                                 }
                             }
                             else
@@ -706,8 +708,11 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                                 Server.NextFrame(() =>
                                 {
                                     int ind = playerInfo[player.Slot].ItemTimeleft.FindIndex(x => x.ItemID == ItemID);
-                                    playerInfo[player.Slot].ItemTimeleft[ind].TimeleftTimer.Kill();
-                                    playerInfo[player.Slot].ItemTimeleft.RemoveAll(x => x.ItemID == playerList.item_id);
+                                    if (ind >= 0)
+                                    {
+                                        playerInfo[player.Slot].ItemTimeleft[ind].TimeleftTimer.Kill();
+                                        playerInfo[player.Slot].ItemTimeleft.RemoveAt(ind);
+                                    }
                                 });
 
                                 playerInfo[player.Slot].ItemList.Remove(playerList);
@@ -775,8 +780,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             catch (Exception ex)
             {
                 Logger.LogError("{OnChooseAction} Failed send info in database | " + ex.Message);
-                Logger.LogDebug(ex.Message);
-                throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
             }
         });
 
@@ -822,8 +825,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             catch (Exception ex)
             {
                 Logger.LogError("{DequipAllItemsOnCategory} Failed send info in database | " + ex.Message);
-                Logger.LogDebug(ex.Message);
-                throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
             }
         });
     }
@@ -892,8 +893,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             catch (Exception ex)
             {
                 Logger.LogError("{OnChooseSell} Failed send info in database | " + ex.Message);
-                Logger.LogDebug(ex.Message);
-                throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
             }
         });
     }
@@ -918,25 +917,22 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                 {
                     await connection.OpenAsync();
                     // Проверка на наличие игрока в базе
-                    var data = await connection.QueryFirstOrDefaultAsync("SELECT `id`, `money` FROM `shop_players` WHERE `auth` = @Auth;", new
+                    var playerdata = await connection.QueryFirstOrDefaultAsync("SELECT `id`, `money` FROM `shop_players` WHERE `auth` = @Auth LIMIT 1;", new
                     {
                         Auth = steamid
                     });
 
-                    if(data != null && data!.Count() > 0)
+                    if(playerdata != null)
                     {
-                        foreach(var row in data!.ToList())
+                        playerInfo[playerSlot] = new PlayerInformation
                         {
-                            playerInfo[playerSlot] = new PlayerInformation
-                            {
-                                SteamID = steamid,
-                                Credits = (int)row.money,
-                                DatabaseID = (int)row.id,
-                                ItemList = new(),
-                                ItemStates = new(),
-                                ItemTimeleft = new()
-                            };
-                        }
+                            SteamID = steamid,
+                            Credits = (int)playerdata!.money,
+                            DatabaseID = (int)playerdata.id,
+                            ItemList = new(),
+                            ItemStates = new(),
+                            ItemTimeleft = new()
+                        };
 
                         // Обновление информации об игроке
                         await connection.ExecuteAsync("UPDATE `shop_players` SET `name` = @Name WHERE `auth` = @Auth;", new
@@ -974,12 +970,12 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                     }
 
                     // Загрузка предметов 
-                    data = await connection.QueryFirstOrDefaultAsync("SELECT * FROM `shop_boughts` WHERE `player_id` = @playerID;", new
+                    var data = await connection.QueryAsync("SELECT * FROM `shop_boughts` WHERE `player_id` = @playerID;", new
                     {
                         playerID = playerInfo[playerSlot].DatabaseID
                     });
                     
-                    if(data != null && data!.Count() > 0)
+                    if(data != null)
                     {
                         foreach(var row in data!.ToList())
                         {
@@ -1033,12 +1029,12 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                     }
 
                     // Загрузка состояний предметов
-                    data = await connection.QueryFirstOrDefaultAsync("SELECT * FROM `shop_toggles` WHERE `player_id` = @playerID;", new
+                    data = await connection.QueryAsync("SELECT * FROM `shop_toggles` WHERE `player_id` = @playerID;", new
                     {
                         playerID = playerInfo[playerSlot].DatabaseID
                     });
 
-                    if(data != null && data!.Count() > 0)
+                    if(data != null)
                     {
                         foreach(var row in data!.ToList())
                         {
@@ -1064,11 +1060,28 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             catch (Exception ex)
             {
                 Logger.LogError("{OnClientAuthorized} Failed get info in database | " + ex.Message);
-                Logger.LogDebug(ex.Message);
-                throw new Exception("[SHOP] Failed get info in database! | " + ex.Message);
             }
         });
 	}
+
+    public void OnClientDisconnect(int playerSlot)
+    {
+        if (playerInfo[playerSlot] != null)
+        {
+            foreach (var t in playerInfo[playerSlot].ItemTimeleft)
+                t.TimeleftTimer?.Kill();
+
+            playerInfo[playerSlot].ItemTimeleft.Clear();
+            playerInfo[playerSlot] = null!;
+        }
+
+        transPlayer[playerSlot] = null!;
+
+        for (int i = 0; i < transPlayer.Length; i++)
+            if (transPlayer[i] != null && transPlayer[i].Slot == playerSlot)
+                transPlayer[i] = null!;
+    }
+
     public bool? GetItemState(string uniqueName, CCSPlayerController player)
     {
         if (player == null)
@@ -1129,8 +1142,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             catch (Exception ex)
             {
                 Logger.LogError("{TimerDeleteTimeleftItem} Failed send info in database | " + ex.Message);
-                Logger.LogDebug(ex.Message);
-                throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
             }
         });
     }
@@ -1160,7 +1171,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             {
                 await using (var connection = new MySqlConnection(dbConnectionString))
                 {
-                    connection.Open();
+                    await connection.OpenAsync();
 
                     await connection.ExecuteAsync(@"CREATE TABLE IF NOT EXISTS `shop_players` (
                                                         `id` int NOT NULL PRIMARY KEY AUTO_INCREMENT,
@@ -1197,8 +1208,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             catch (Exception ex)
             {
                 Logger.LogError("{OnConfigParsed} Unable to connect to database! | " + ex.Message);
-                Logger.LogDebug(ex.Message);
-                throw new Exception("[SHOP] Unable to connect to Database! | " + ex.Message);
             }
         });
 
@@ -1244,7 +1253,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
         catch (Exception ex)
         {
             Logger.LogError("{AddItemInDB} Failed send info in database | " + ex.Message);
-            Logger.LogDebug(ex.Message);
             throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
         }
 
@@ -1267,12 +1275,12 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             return;
         }
 
-        if(Convert.ToInt32(commandInfo.GetArg(2)) <= 0)
+        if (!int.TryParse(commandInfo.GetArg(2), out int credits) || credits <= 0)
         {
             CustomReplyToCommand(commandInfo, Localizer["Command_IncorrectMoneyCount"]);
             return;
         }
-
+        
         if(!commandInfo.GetArg(1).StartsWith("STEAM_") && !commandInfo.GetArg(1).StartsWith("#"))
         {
             var targets = commandInfo.GetArgTargetResult(1);
@@ -1281,21 +1289,25 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             {
                 if(target == null || playerInfo[target.Slot] == null) continue;
 
-                AddClientCredits(target, Convert.ToInt32(commandInfo.GetArg(2)), IShopApi.WhoChangeCredits.ByAdminCommand);
+                AddClientCredits(target, credits, IShopApi.WhoChangeCredits.ByAdminCommand);
                 Server.PrintToChatAll(StringExtensions.ReplaceColorTags(Localizer["Command_AddCredits", player == null ? "Console" : player.PlayerName, commandInfo.GetArg(2), target.PlayerName]));
             }
         }
         else
         {
             string steamid = commandInfo.GetArg(1).StartsWith("STEAM_") ? commandInfo.GetArg(1).Replace("STEAM_1", "STEAM_0") : commandInfo.GetArg(1).Replace("#", "");
-            var target = Utilities.GetPlayers().FirstOrDefault(x => !x.IsBot && !x.IsHLTV 
-                && commandInfo.GetArg(1).StartsWith("STEAM_") ? x.AuthorizedSteamID!.SteamId2 == steamid : Convert.ToString(x.AuthorizedSteamID!.SteamId64) == steamid);
+            bool bySteamId2 = commandInfo.GetArg(1).StartsWith("STEAM_");
+            var target = Utilities.GetPlayers().FirstOrDefault(x =>
+                !x.IsBot && !x.IsHLTV && x.AuthorizedSteamID != null &&
+                (bySteamId2
+                    ? x.AuthorizedSteamID.SteamId2 == steamid
+                    : x.AuthorizedSteamID.SteamId64.ToString() == steamid));
             if(target != null)
             {
                 var playerinfo = playerInfo[target.Slot];
                 if(playerinfo != null && playerinfo.DatabaseID != -1)
                 {
-                    AddClientCredits(target, Convert.ToInt32(commandInfo.GetArg(2)), IShopApi.WhoChangeCredits.ByAdminCommand);
+                    AddClientCredits(target, credits, IShopApi.WhoChangeCredits.ByAdminCommand);
                 }
             }
             else
@@ -1306,7 +1318,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                     steamid = $"STEAM_0:{(steam64 - 76561197960265728) % 2}:{(steam64 - 76561197960265728) / 2}";
                 }
 
-                AddClientCredits(steamid, Convert.ToInt32(commandInfo.GetArg(2)));
+                AddClientCredits(steamid, credits);
             }
         }
 	}
@@ -1320,7 +1332,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             return;
         }
 
-        if(Convert.ToInt32(commandInfo.GetArg(2)) < 0)
+        if(!int.TryParse(commandInfo.GetArg(2), out int credits) || credits < 0)
         {
             CustomReplyToCommand(commandInfo, Localizer["Command_IncorrectMoneyCount"]);
             return;
@@ -1334,21 +1346,25 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             {
                 if(target == null || playerInfo[target.Slot] == null) continue;
 
-                SetClientCredits(target, Convert.ToInt32(commandInfo.GetArg(2)), IShopApi.WhoChangeCredits.ByAdminCommand);
-                Server.PrintToChatAll(StringExtensions.ReplaceColorTags(Localizer["Command_SetCredits", player == null ? "Console" : player.PlayerName, commandInfo.GetArg(2), target.PlayerName]));
+                SetClientCredits(target, credits, IShopApi.WhoChangeCredits.ByAdminCommand);
+                Server.PrintToChatAll(StringExtensions.ReplaceColorTags(Localizer["Command_SetCredits", player == null ? "Console" : player.PlayerName, credits.ToString(), target.PlayerName]));
             }
         }
         else
         {
             string steamid = commandInfo.GetArg(1).StartsWith("STEAM_") ? commandInfo.GetArg(1).Replace("STEAM_1", "STEAM_0") : commandInfo.GetArg(1).Replace("#", "");
-            var target = Utilities.GetPlayers().FirstOrDefault(x => !x.IsBot && !x.IsHLTV 
-                && commandInfo.GetArg(1).StartsWith("STEAM_") ? x.AuthorizedSteamID!.SteamId2 == steamid : Convert.ToString(x.AuthorizedSteamID!.SteamId64) == steamid);
+            bool bySteamId2 = commandInfo.GetArg(1).StartsWith("STEAM_");
+            var target = Utilities.GetPlayers().FirstOrDefault(x =>
+                !x.IsBot && !x.IsHLTV && x.AuthorizedSteamID != null &&
+                (bySteamId2
+                    ? x.AuthorizedSteamID.SteamId2 == steamid
+                    : x.AuthorizedSteamID.SteamId64.ToString() == steamid));
             if(target != null)
             {
                 var playerinfo = playerInfo[target.Slot];
                 if(playerinfo != null && playerinfo.DatabaseID != -1)
                 {
-                    SetClientCredits(target, Convert.ToInt32(commandInfo.GetArg(2)), IShopApi.WhoChangeCredits.ByAdminCommand);
+                    SetClientCredits(target, credits, IShopApi.WhoChangeCredits.ByAdminCommand);
                 }
             }
             else
@@ -1359,7 +1375,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                     steamid = $"STEAM_0:{(steam64 - 76561197960265728) % 2}:{(steam64 - 76561197960265728) / 2}";
                 }
 
-                SetClientCredits(steamid, Convert.ToInt32(commandInfo.GetArg(2)));
+                SetClientCredits(steamid, credits);
             }
         }
 	}
@@ -1373,7 +1389,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             return;
         }
 
-        if(Convert.ToInt32(commandInfo.GetArg(2)) <= 0)
+        if(!int.TryParse(commandInfo.GetArg(2), out int credits) || credits <= 0)
         {
             CustomReplyToCommand(commandInfo, Localizer["Command_IncorrectMoneyCount"]);
             return;
@@ -1387,21 +1403,25 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             {
                 if(target == null || playerInfo[target.Slot] == null) continue;
 
-                TakeClientCredits(target, Convert.ToInt32(commandInfo.GetArg(2)), IShopApi.WhoChangeCredits.ByAdminCommand);
-                Server.PrintToChatAll(StringExtensions.ReplaceColorTags(Localizer["Command_TakeCredits", player == null ? "Console" : player.PlayerName, commandInfo.GetArg(2), target.PlayerName]));
+                TakeClientCredits(target, credits, IShopApi.WhoChangeCredits.ByAdminCommand);
+                Server.PrintToChatAll(StringExtensions.ReplaceColorTags(Localizer["Command_TakeCredits", player == null ? "Console" : player.PlayerName, credits.ToString(), target.PlayerName]));
             }
         }
         else
         {
             string steamid = commandInfo.GetArg(1).StartsWith("STEAM_") ? commandInfo.GetArg(1).Replace("STEAM_1", "STEAM_0") : commandInfo.GetArg(1).Replace("#", "");
-            var target = Utilities.GetPlayers().FirstOrDefault(x => !x.IsBot && !x.IsHLTV 
-                && commandInfo.GetArg(1).StartsWith("STEAM_") ? x.AuthorizedSteamID!.SteamId2 == steamid : Convert.ToString(x.AuthorizedSteamID!.SteamId64) == steamid);
+            bool bySteamId2 = commandInfo.GetArg(1).StartsWith("STEAM_");
+            var target = Utilities.GetPlayers().FirstOrDefault(x =>
+                !x.IsBot && !x.IsHLTV && x.AuthorizedSteamID != null &&
+                (bySteamId2
+                    ? x.AuthorizedSteamID.SteamId2 == steamid
+                    : x.AuthorizedSteamID.SteamId64.ToString() == steamid));
             if(target != null)
             {
                 var playerinfo = playerInfo[target.Slot];
                 if(playerinfo != null && playerinfo.DatabaseID != -1)
                 {
-                    TakeClientCredits(target, Convert.ToInt32(commandInfo.GetArg(2)), IShopApi.WhoChangeCredits.ByAdminCommand);
+                    TakeClientCredits(target, credits, IShopApi.WhoChangeCredits.ByAdminCommand);
                 }
             }
             else
@@ -1412,7 +1432,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
                     steamid = $"STEAM_0:{(steam64 - 76561197960265728) % 2}:{(steam64 - 76561197960265728) / 2}";
                 }
 
-                TakeClientCredits(steamid, Convert.ToInt32(commandInfo.GetArg(2)));
+                TakeClientCredits(steamid, credits);
             }
         }
     }
@@ -1434,13 +1454,12 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             return;
         }
 
-        if(IsItemFinite(Item) && Convert.ToInt32(commandInfo.GetArg(3)) <= 0 || Convert.ToInt32(commandInfo.GetArg(3)) < 0)
+        if(!int.TryParse(commandInfo.GetArg(3), out int customDuration) || (IsItemFinite(Item) && customDuration <= 0) || customDuration < 0)
         {
             CustomReplyToCommand(commandInfo, Localizer["Command_IncorrectItemCount"]);
             return;
         }
 
-        var customDuration = Convert.ToInt32(commandInfo.GetArg(3));
         if(!commandInfo.GetArg(1).StartsWith("STEAM_") && !commandInfo.GetArg(1).StartsWith("#"))
         {
             var targets = commandInfo.GetArgTargetResult(1);
@@ -1466,8 +1485,12 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
         else
         {
             string steamid = commandInfo.GetArg(1).StartsWith("STEAM_") ? commandInfo.GetArg(1).Replace("STEAM_1", "STEAM_0") : commandInfo.GetArg(1).Replace("#", "");
-            var target = Utilities.GetPlayers().FirstOrDefault(x => !x.IsBot && !x.IsHLTV 
-                && commandInfo.GetArg(1).StartsWith("STEAM_") ? x.AuthorizedSteamID!.SteamId2 == steamid : Convert.ToString(x.AuthorizedSteamID!.SteamId64) == steamid);
+            bool bySteamId2 = commandInfo.GetArg(1).StartsWith("STEAM_");
+            var target = Utilities.GetPlayers().FirstOrDefault(x =>
+                !x.IsBot && !x.IsHLTV && x.AuthorizedSteamID != null &&
+                (bySteamId2
+                    ? x.AuthorizedSteamID.SteamId2 == steamid
+                    : x.AuthorizedSteamID.SteamId64.ToString() == steamid));
             if(target != null)
             {
                 var playerinfo = playerInfo[target.Slot];
@@ -1504,13 +1527,13 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             return;
         }
 
-        if(IsItemFinite(Item) && Convert.ToInt32(commandInfo.GetArg(3)) <= 0)
+        int.TryParse(commandInfo.GetArg(3), out int customCount);
+        if (IsItemFinite(Item) && customCount <= 0)
         {
             CustomReplyToCommand(commandInfo, Localizer["Command_IncorrectItemCount"]);
             return;
         }
 
-        var customCount = Convert.ToInt32(commandInfo.GetArg(3));
         if(!commandInfo.GetArg(1).StartsWith("STEAM_") && !commandInfo.GetArg(1).StartsWith("#"))
         {
             var targets = commandInfo.GetArgTargetResult(1);
@@ -1526,8 +1549,12 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
         else
         {
             string steamid = commandInfo.GetArg(1).StartsWith("STEAM_") ? commandInfo.GetArg(1).Replace("STEAM_1", "STEAM_0") : commandInfo.GetArg(1).Replace("#", "");
-            var target = Utilities.GetPlayers().FirstOrDefault(x => !x.IsBot && !x.IsHLTV 
-                && commandInfo.GetArg(1).StartsWith("STEAM_") ? x.AuthorizedSteamID!.SteamId2 == steamid : Convert.ToString(x.AuthorizedSteamID!.SteamId64) == steamid);
+            bool bySteamId2 = commandInfo.GetArg(1).StartsWith("STEAM_");
+            var target = Utilities.GetPlayers().FirstOrDefault(x =>
+                !x.IsBot && !x.IsHLTV && x.AuthorizedSteamID != null &&
+                (bySteamId2
+                    ? x.AuthorizedSteamID.SteamId2 == steamid
+                    : x.AuthorizedSteamID.SteamId64.ToString() == steamid));
             if(target != null)
             {
                 var playerinfo = playerInfo[target.Slot];
@@ -1653,8 +1680,7 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
         catch (Exception ex)
         {
             Logger.LogError("{GetClientCreditsDB} Failed get info in database | " + ex.Message);
-            Logger.LogDebug(ex.Message);
-            throw new Exception("[SHOP] Failed get info in database! | " + ex.Message);
+            throw new Exception("[SHOP] {GetClientCreditsDB} Failed get info in database! | " + ex.Message);
         }
 
         return -1;
@@ -1690,8 +1716,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             catch (Exception ex)
             {
                 Logger.LogError("{SetClientCredits} Failed send info in database | " + ex.Message);
-                Logger.LogDebug(ex.Message);
-                throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
             }
         });
 
@@ -1720,8 +1744,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             catch (Exception ex)
             {
                 Logger.LogError("{SetClientCreditsDB} Failed send info in database | " + ex.Message);
-                Logger.LogDebug(ex.Message);
-                throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
             }
         });
     }
@@ -1757,8 +1779,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             catch (Exception ex)
             {
                 Logger.LogError("{AddClientCredits} Failed send info in database | " + ex.Message);
-                Logger.LogDebug(ex.Message);
-                throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
             }
         });
 
@@ -1787,8 +1807,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             catch (Exception ex)
             {
                 Logger.LogError("{AddClientCreditsDB} Failed send info in database | " + ex.Message);
-                Logger.LogDebug(ex.Message);
-                throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
             }
         });
     }
@@ -1827,8 +1845,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             catch (Exception ex)
             {
                 Logger.LogError("{TakeClientCredits} Failed send info in database | " + ex.Message);
-                Logger.LogDebug(ex.Message);
-                throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
             }
         });
 
@@ -1857,8 +1873,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             catch (Exception ex)
             {
                 Logger.LogError("{TakeClientCreditsDB} Failed send info in database | " + ex.Message);
-                Logger.LogDebug(ex.Message);
-                throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
             }
         });
     }
@@ -1936,8 +1950,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             catch (Exception ex)
             {
                 Logger.LogError("{GivePlayerItem} Failed send info in database | " + ex.Message);
-                Logger.LogDebug(ex.Message);
-                throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
             }
         });
 
@@ -2015,8 +2027,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             catch (Exception ex)
             {
                 Logger.LogError("{GivePlayerItemDB} Failed send info in database | " + ex.Message);
-                Logger.LogDebug(ex.Message);
-                throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
             }
         });
 
@@ -2107,8 +2117,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             catch (Exception ex)
             {
                 Logger.LogError("{TakePlayerItem} Failed send info in database | " + ex.Message);
-                Logger.LogDebug(ex.Message);
-                throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
             }
         });
 
@@ -2191,8 +2199,6 @@ public class Shop : BasePlugin, IPluginConfig<ShopConfig>
             catch (Exception ex)
             {
                 Logger.LogError("{TakePlayerItemDB} Failed send info in database | " + ex.Message);
-                Logger.LogDebug(ex.Message);
-                throw new Exception("[SHOP] Failed send info in database! | " + ex.Message);
             }
         });
 
